@@ -58,3 +58,12 @@ Também há EQ com várias bandas positivas e AutoHeadroom do EQ desativado no p
 - Jellyfin: existem adaptadores, navegação e seleção de streams. 2160p, canais de um título e codec servido devem ser aferidos na sessão real do destino, não deduzidos do título/idioma.
 - Firmware UD851B: há relatório de análise estática. Não houve firmware modificado validado nem atualização no aparelho.
 - Latência ponta a ponta: o projeto contém diagnósticos de fila e impulsos, mas os números de buffer/delay não medem sozinhos PC → decoder → amplificador → caixa.
+
+
+## Plano Android / A34 aprovado em 05/10/2026
+
+O usuário escolheu manter o Fire TV e desenvolver um DSP no Galaxy A34 existente. Foram publicados [arquitetura e diagramas](A34-DSP.md), [roteiro de programação/validação](A34-DESENVOLVIMENTO-E-VALIDACAO.md) e [pesquisa/orçamento](A34-ORCAMENTO-E-PESQUISA.md). A publicação contém documentação, sem código Android implementado.
+
+A opção econômica depende de confirmar saída óptica no decoder ou repasse AC-3 da TV; a CM6206 precisa comprovar captura íntegra e reprodução multicanal simultânea no A34. Os valores de latência são estimativas de planejamento, não resultados de testes. O ajuste AV do Fire TV é candidato à compensação de sincronismo, com alcance e efeito no caminho Dolby Digital ainda a validar.
+
+Não foram realizados compras, instalação no telefone, root, troca de OS, alteração de firmware ou teste físico da cadeia. Os resultados Windows acima continuam específicos da implementação existente.

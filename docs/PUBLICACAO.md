@@ -39,3 +39,10 @@ git diff --cached --stat
 O verificador lê somente os arquivos do índice Git, não despeja conteúdo nem segredos no terminal, rejeita categorias proibidas e busca formatos comuns de tokens. Quando há estado local do controle, também verifica se sua chave atual foi copiada literalmente para algum arquivo versionado. A checagem complementa a seleção de arquivos; não garante identificar qualquer segredo possível.
 
 O repositório foi criado privado na conta autenticada do autor. A licença de redistribuição das dependências é independente dos fontes próprios; nenhum executável de terceiro foi incorporado.
+
+
+## Documentação do plano A34 — 05/10/2026
+
+Incluídos plano aprovado, diagramas, orçamento em reais, comparação com J1800, pesquisa de interfaces e roteiro de programação/validação. As referências de preços não são cotações novas; as condições de hardware continuam explícitas. Dados de entrega, credenciais, transcrição privada da conversa e arquivos baixados de terceiros não foram acrescentados. Os documentos contêm links e síntese técnica, sem binários ou implementação Android pronta.
+
+A criação privada descrita acima é histórica; o usuário tornou o repositório público antes desta atualização.

@@ -4,6 +4,16 @@ Código desenvolvido para transformar o áudio compartilhado do Windows em Dolby
 
 **Comece por [Reaproveitar em outro projeto](docs/REAPROVEITAMENTO.md).** Para entender as decisões e limitações, leia [Arquitetura](docs/ARQUITETURA.md) e [Estado e validação](docs/ESTADO-E-VALIDACAO.md).
 
+## Plano aprovado para o Galaxy A34
+
+A próxima implementação mantém o Fire TV como player e usa o A34 como DSP, com uma interface CM6206 candidata. A opção econômica pretende reutilizar a saída óptica do decoder (se existir) ou da TV e usar as saídas analógicas da interface nos amplificadores. **O APK e a cadeia USB/óptica ainda não foram implementados nem validados.**
+
+- [Arquitetura, diagramas, calibração, latência e sincronismo](docs/A34-DSP.md).
+- [Programação Android pelo PC e roteiro de validação](docs/A34-DESENVOLVIMENTO-E-VALIDACAO.md).
+- [Orçamento em reais, alternativas e pesquisa de hardware](docs/A34-ORCAMENTO-E-PESQUISA.md).
+
+A presença de saída óptica na unidade UD851B e a captura AC-3 íntegra/simultânea pela CM6206 são condições abertas. Os subtotais são referências anteriores, não ofertas ou funcionamento garantidos.
+
 ## O que foi desenvolvido
 
 | Módulo | Responsabilidade | Código principal |
@@ -101,4 +111,4 @@ O diretório mantém os nomes dos arquivos originais para preservar as referênc
 
 A lista de permissões do `.gitignore` publica código, documentos e exemplos. Ela deixa fora PIN, chave da ponte Netflix, cookies, perfis do navegador, logs, PIDs, backups locais, áudio de teste gerado, instaladores, firmware extraído e bibliotecas baixadas. O servidor gera suas próprias credenciais ao ser iniciado em uma cópia nova. [Manifesto de publicação](docs/PUBLICACAO.md) descreve a seleção.
 
-As dependências de terceiros mantêm seus próprios termos de distribuição. Este repositório privado não redistribui seus executáveis nem o player público completo da Netflix.
+As dependências de terceiros mantêm seus próprios termos de distribuição. Este repositório não redistribui seus executáveis nem o player público completo da Netflix.
