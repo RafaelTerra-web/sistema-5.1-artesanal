@@ -4,6 +4,8 @@ Registro da decisão de projeto em **05/10/2026**. O usuário escolheu reaprovei
 
 Documentos complementares: [pesquisa e orçamento](A34-ORCAMENTO-E-PESQUISA.md), [programação e validação](A34-DESENVOLVIMENTO-E-VALIDACAO.md), [arquitetura Windows existente](ARQUITETURA.md).
 
+**Atualização da discussão:** a direção mais recente é Fire TV → Sony → óptico → CM6206 ↔ A34 → saídas analógicas → amplificadores, deixando o UD851B disponível para uso direto. O manual exato da Sony documenta Dolby Digital/DTS óptico e conversão DD+ → DD. Consulte as [notas complementares](A34-NOTAS-COMPLEMENTARES.md) para codecs, PC-USB do decoder, volume remoto e adaptação dos cabos. As rotas abaixo preservam também alternativas históricas; nenhuma cadeia Android foi validada.
+
 ## Objetivo e equipamento existente
 
 Manter a praticidade do Fire TV em Netflix, Prime Video e YouTube, com a imagem chegando à Sony em 4K60 quando fonte, conteúdo e todos os equipamentos do caminho permitirem. Processar somente o áudio no A34: equalização, volumes, cortes, distribuição de graves, upmix de fontes mono/estéreo e atrasos por canal.
@@ -11,7 +13,7 @@ Manter a praticidade do Fire TV em Netflix, Prime Video e YouTube, com a imagem 
 | Equipamento | Situação registrada |
 | --- | --- |
 | Samsung Galaxy A34 | Já disponível; começar no Android original, sem root |
-| Fire TV Stick 4K | Já disponível; alimentação micro-USB, geração exata ainda desconhecida |
+| Fire TV Stick 4K | Já disponível; 2ª geração informada pelo usuário, alimentação micro-USB |
 | Sony Bravia KD-55X705E | Modelo informado pelo usuário; a especificação Sony lista 4K60 e HDCP 2.2 |
 | Decoder UD851B | Já disponível; Dolby Digital 5.1 confirmado pelo usuário no uso com o PC |
 | Cabos HDMI | Já disponíveis |
@@ -23,7 +25,7 @@ Manter a praticidade do Fire TV em Netflix, Prime Video e YouTube, com a imagem 
 
 O YS-S350H também envia os graves de sua entrada da central ao sub. Essa mistura física continua existindo mesmo com o DSP; não presumir que CEN e LFE ficam totalmente independentes depois desse módulo. O gabinete selado do sub foi descrito como mal dimensionado, com pico perceptível entre 50 e 60 Hz. A EQ deve ser revista por medição, sem tratar o preset antigo como resposta universal.
 
-## Opção econômica escolhida para investigar
+## Alternativa inicial: decoder como extrator
 
 Reutilizar o decoder como extrator de áudio HDMI e fazer a conversão analógica final na CM6206. Assim, o áudio processado **não volta ao mesmo decoder**.
 
@@ -57,19 +59,19 @@ A mesma conexão USB da interface leva o fluxo recebido ao telefone e traz os se
 
 Uma caixa com OPTICAL IN e OUT não necessariamente oferece roteamento independente de efeitos. O manual do UD951B descreve fonte selecionada alimentando as saídas. Ao selecionar o retorno óptico processado, não está documentado que o áudio HDMI original continue saindo pela óptica. Portanto, não projetar HDMI → decoder → A34 → mesmo decoder como se houvesse um envio/retorno independente. A opção econômica evita essa dependência ao usar a CM6206 para a saída analógica.
 
-## Alternativas se o decoder não tiver OPTICAL OUT
+## Saída óptica da Sony e outras alternativas
 
 ### Usar a saída óptica da própria Sony
 
 ```mermaid
 flowchart LR
     F["Fire TV"] -->|"HDMI"| T["Sony Bravia"]
-    T -->|"Óptico: AC-3 nativo a confirmar"| C["CM6206 IN"]
+    T -->|"Óptico: Dolby Digital / DTS; testar percurso real"| C["CM6206 IN"]
     C <-->|"USB / OTG"| A["A34: decodificação e DSP"]
     C -->|"Saídas analógicas 5.1"| P["Amplificadores e caixas"]
 ```
 
-Esta opção também dispensa extrator externo. Antes de comprar a interface, testar Fire TV → TV → óptico → UD851B usando o cabo existente. Confirmar seis canais discretos de uma fonte conhecida: a indicação de modo 5.1 ou seis caixas tocando por upmix não comprova transporte 5.1 nativo. Ainda não foi confirmado que essa Sony repassa AC-3 de uma entrada HDMI para a saída óptica em todos os aplicativos.
+Esta é a direção mais recente discutida e dispensa extrator externo. O manual da Sony documenta Dolby Digital/DTS óptico e conversão DD+ → DD; consulte as notas complementares para configurações e limites. Antes de comprar a interface, testar Fire TV → TV → óptico → UD851B usando o cabo existente. Confirmar seis canais discretos de uma fonte conhecida: a indicação de modo 5.1 ou seis caixas tocando por upmix não comprova transporte 5.1 nativo. O percurso real pelos aplicativos ainda não foi testado.
 
 ### Extrator HDMI externo e saídas analógicas da CM6206
 
@@ -101,7 +103,7 @@ Esses atrasos são referências iniciais do sistema anterior. A troca do convers
 
 ## Latência estimada e sincronização
 
-Hipótese solicitada pelo usuário: contribuição do UD851B próxima de zero. Na opção econômica, ele somente recebe HDMI e fornece a saída digital; a decodificação de AC-3 para o DSP acontece no A34.
+Hipótese solicitada pelo usuário na rota histórica com decoder como extrator: contribuição do UD851B próxima de zero. Nessa rota, ele somente receberia HDMI e forneceria saída digital, se comprovada; a decodificação para DSP acontece no A34. Na direção mais recente com óptica Sony e saída analógica da interface, o UD851B fica fora do percurso.
 
 **Estimativa de planejamento, sem benchmark do A34/CM6206:** reservar 60–120 ms para a cadeia de captura, processamento e reprodução, antes dos atrasos deliberados de cada canal. Usar 80 ms como exemplo de orçamento. Aplicação e buffers ainda inexistem, então essa faixa não é garantia, limite mínimo ou máximo.
 

@@ -46,3 +46,7 @@ O repositório foi criado privado na conta autenticada do autor. A licença de r
 Incluídos plano aprovado, diagramas, orçamento em reais, comparação com J1800, pesquisa de interfaces e roteiro de programação/validação. As referências de preços não são cotações novas; as condições de hardware continuam explícitas. Dados de entrega, credenciais, transcrição privada da conversa e arquivos baixados de terceiros não foram acrescentados. Os documentos contêm links e síntese técnica, sem binários ou implementação Android pronta.
 
 A criação privada descrita acima é histórica; o usuário tornou o repositório público antes desta atualização.
+
+## Notas complementares de conhecimento — 05/10/2026
+
+Incluídas conclusões da discussão sobre Sony/DTS, controle de volume pelo Fire TV, retorno ao UD851B, limites ainda desconhecidos da PC-USB e reaproveitamento de cabos. Guias e índice foram alinhados à direção mais recente. A atualização contém documentação e links; não contém novas cotações, imagens privadas, dados de entrega, credenciais, firmware ou implementação Android/ESP32.

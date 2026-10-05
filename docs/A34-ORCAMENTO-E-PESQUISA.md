@@ -1,6 +1,8 @@
 # A34: orçamento e pesquisa de hardware
 
-Consolidação em **05/10/2026**. [Plano aprovado](A34-DSP.md) e [programação/validação](A34-DESENVOLVIMENTO-E-VALIDACAO.md).
+Consolidação em **05/10/2026**. [Plano aprovado](A34-DSP.md), [programação/validação](A34-DESENVOLVIMENTO-E-VALIDACAO.md) e [notas complementares](A34-NOTAS-COMPLEMENTARES.md).
+
+Atualização de conhecimento: o manual exato da Sony documenta saída óptica Dolby Digital/DTS e conversão DD+ → DD. A direção mais recente investiga TV → interface → A34 → saídas analógicas, sem UD851B nessa rota. Adaptadores P2 macho → dois RCA fêmeas podem reutilizar cabos existentes compatíveis; ainda não foram cotados. A PC-USB do decoder pode ser testada como alternativa de saída, sem presumir captura ou seis canais por USB.
 
 Os valores abaixo são **referências das consultas anteriores**, em reais. Não constituem nova cotação, confirmação de estoque ou total entregue. Fretes permanecem separados. A CM6206 e o extrator foram cotados com estimativa de impostos; a cobrança efetiva depende da oferta e do checkout. Não foram feitas compras.
 
@@ -13,7 +15,7 @@ Os valores abaixo são **referências das consultas anteriores**, em reais. Não
 | OTG USB-C → USB-A simples | R$ 10,30 | Teste com A34 na bateria; verificar alimentação da interface |
 | Hub Ugreen 15596 com USB-A e entrada USB-C PD | R$ 101,64 | Alternativa ao OTG, não compra cumulativa; carregamento e host simultâneos no A34 precisam de teste |
 | Segundo cabo óptico Toslink 1 m | R$ 16,35 | Só necessário na montagem com retorno óptico ao decoder |
-| Cabos/adaptação das saídas analógicas | A cotar | Possivelmente três P2 estéreo macho-macho; confirmar painel da CM6206 e entradas dos amplificadores |
+| Cabos/adaptação das saídas analógicas | A cotar | Três P2 estéreo macho-macho ou três adaptadores P2 macho / 2 RCA fêmeas para cabos existentes compatíveis; conferir conectores e pinagem |
 | Carregador PD e cabo compatíveis | Reutilizar ou cotar | Não incluídos nos totais; necessários para tentativa de operação com hub e carga contínua |
 
 O hub não dá entrada HDMI nem saída HDMI nativa ao A34. Sua saída HDMI não é utilizada neste projeto. O A34 não recebe o Fire TV diretamente por um cabo HDMI/USB-C.

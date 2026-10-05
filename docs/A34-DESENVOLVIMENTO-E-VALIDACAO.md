@@ -1,6 +1,6 @@
 # Desenvolvimento e validação do DSP no Galaxy A34
 
-Plano aprovado em 05/10/2026. A arquitetura e as condições físicas estão em [A34-DSP](A34-DSP.md). Este roteiro é para criar a implementação; nenhuma etapa abaixo deve ser registrada como aprovada por teste sem a respectiva evidência.
+Plano aprovado em 05/10/2026. A arquitetura e as condições físicas estão em [A34-DSP](A34-DSP.md). Este roteiro é para criar a implementação; nenhuma etapa abaixo deve ser registrada como aprovada por teste sem a respectiva evidência. As [notas complementares](A34-NOTAS-COMPLEMENTARES.md) registram a direção mais recente, decodificação DTS opcional, controle de volume e teste da PC-USB do UD851B.
 
 ## Desenvolvimento no PC e execução no telefone
 
@@ -37,7 +37,7 @@ flowchart TB
 | Interface Android | Kotlin: iniciar/parar, perfis, volumes, EQ, atrasos, seleção nativo/upmix e diagnóstico |
 | Ciclo de execução | Serviço adequado ao processamento contínuo, com estado visível; tratar tela apagada, interrupções e reconexão USB |
 | USB | UsbManager para descoberta/permissão; motor nativo com libusb e transferências isócronas se necessário |
-| Codec | Avaliar bibliotecas FFmpeg compiladas para ARM64 para extrair e decodificar AC-3; respeitar licenças da configuração escolhida |
+| Codec | Avaliar bibliotecas FFmpeg compiladas para ARM64 para extrair e decodificar AC-3; acrescentar DTS se usado na entrada e validar o transporte; respeitar licenças da configuração escolhida |
 | DSP | Adaptar filtros existentes em libavfilter ou motor C/C++ equivalente, com coeficientes e ordem dos canais explícitos |
 | Transporte interno | Filas limitadas e buffers reutilizáveis; evitar alocação, IO de arquivos e trabalho de UI na rotina de áudio |
 | Relógios | Monitorar ocupação; compensar deriva no PCM após a decodificação, preservando canais e continuidade |
@@ -61,8 +61,9 @@ Na opção econômica, a saída USB é PCM, sem recodificação AC-3. Na alterna
 
 ### 0. Resolver as condições físicas
 
-- Confirmar modelo, foto da traseira e OPTICAL OUT do decoder. Se ausente, investigar óptica da Sony antes de escolher extrator externo.
-- Identificar geração/firmware do Fire TV, selecionar Dolby Digital compatível e validar 4K60 na TV.
+- Priorizar teste da óptica Sony com o UD851B e o cabo existentes; o manual exato já documenta codecs e conversão DD+ → DD. OPTICAL OUT do decoder permanece não confirmado e só é necessário na alternativa histórica.
+- Testar reprodução/gravação e canais pela PC-USB do UD851B antes de comprar a interface; HDMI 5.1 não comprova USB 5.1.
+- A 2ª geração do Fire TV foi informada pelo usuário; registrar firmware, selecionar formato compatível e validar 4K60 na TV.
 - Registrar versão Android/One UI do A34 e portas da interface candidata.
 - Não assumir que um extrator simples converte Dolby Digital Plus para Dolby Digital.
 
