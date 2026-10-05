@@ -1,0 +1,48 @@
+{
+    "Enabled":  true,
+    "AutoHeadroom":  false,
+    "Bands":  {
+                  "20":  6,
+                  "25":  6,
+                  "30":  6,
+                  "40":  5.5,
+                  "50":  1.5,
+                  "60":  -4,
+                  "80":  1,
+                  "100":  1,
+                  "120":  -2.5
+              },
+    "Frequencies":  {
+                        "20":  20,
+                        "25":  25,
+                        "30":  30,
+                        "40":  40,
+                        "50":  50,
+                        "60":  60,
+                        "80":  80,
+                        "100":  100,
+                        "120":  120
+                    },
+    "Widths":  {
+                   "20":  2,
+                   "25":  2,
+                   "30":  2,
+                   "40":  2,
+                   "50":  2,
+                   "60":  2,
+                   "80":  2,
+                   "100":  2,
+                   "120":  2
+               },
+    "LevelDb":  0,
+    "BassEnabled":  true,
+    "BassAutoHeadroom":  true,
+    "BassCutoffHz":  90,
+    "BassSendDb":  0,
+    "MasterPercent":  4,
+    "MasterMuted":  false,
+    "CenterBassEnabled":  false,
+    "CenterBassCutoffHz":  120,
+    "CenterBassSendDb":  0,
+    "CenterBassAutoHeadroom":  true
+}

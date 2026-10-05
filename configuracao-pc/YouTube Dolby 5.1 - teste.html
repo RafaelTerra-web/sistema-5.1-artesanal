@@ -1,0 +1,101 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8">
+<title>Teste de Dolby Digital 5.1 no YouTube</title>
+<style>body{background:#111827;color:#f1f5f9;font:18px system-ui;max-width:850px;margin:50px auto;padding:24px;line-height:1.6}h1{font-size:30px}a{color:#93c5fd}.bookmark{display:inline-block;background:#2563eb;color:white;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:bold}li{margin-bottom:15px}details{margin-top:30px}pre{font:13px monospace;white-space:pre-wrap;background:#1e293b;padding:15px}small{color:#cbd5e1}</style>
+<h1>Teste de Dolby Digital 5.1 no YouTube</h1>
+<p>Seu Opera declarou suporte a seis canais, AC-3 e E-AC-3. O vídeo de teste oferece faixas Dolby de seis canais. Este favorito tenta habilitar AC-3 e a preferência por 5.1 no player.</p>
+<p><strong>Experimental: ainda não validado na reprodução. O código usa controles internos do YouTube, que podem mudar.</strong></p>
+<ol><li>Arraste o botão abaixo para a barra de favoritos do Opera. Clicar nele nesta página não aplica o ajuste.</li>
+<li>Abra <a href="https://www.youtube.com/watch?v=nLT8nu-BY6s">o vídeo de teste</a> e clique no favorito recém-criado.</li>
+<li>O painel sobre o vídeo informa o que o player reconhece e permite <strong>Desfazer este teste</strong>.</li>
+<li>No vídeo, clique com o botão direito e abra <strong>Estatísticas para nerds</strong>. Confira o codec de áudio: <strong>ac-3 / formato 380</strong> é a faixa Dolby Digital; neste vídeo, <strong>Opus / 251</strong> ou <strong>AAC / 140</strong> são estéreo.</li></ol>
+<p><a class="bookmark" href="javascript:%28function%20%28%29%20%7B%0A%20%20%27use%20strict%27%3B%0A%20%20if%20%28location.protocol%20%21%3D%3D%20%27https%3A%27%20%7C%7C%20location.hostname%20%21%3D%3D%20%27www.youtube.com%27%20%7C%7C%20location.pathname%20%21%3D%3D%20%27%2Fwatch%27%29%20%7B%0A%20%20%20%20alert%28%27Abra%20um%20v%C3%ADdeo%20em%20https%3A%2F%2Fwww.youtube.com%2Fwatch%20antes%20de%20usar%20este%20favorito.%27%29%3B%0A%20%20%20%20return%3B%0A%20%20%7D%0A%20%20const%20player%20%3D%20document.getElementById%28%27movie_player%27%29%3B%0A%20%20const%20settings%20%3D%20window.ytcfg%3B%0A%20%20const%20required%20%3D%20%5B%27setUserAudio51Preference%27%2C%20%27getUserAudio51Preference%27%2C%20%27loadVideoByPlayerVars%27%5D%3B%0A%20%20if%20%28%21player%20%7C%7C%20required.some%28name%20%3D%3E%20typeof%20player%5Bname%5D%20%21%3D%3D%20%27function%27%29%20%7C%7C%20%21settings%3F.get%20%7C%7C%20%21settings%3F.set%29%20%7B%0A%20%20%20%20alert%28%27Esta%20vers%C3%A3o%20do%20player%20n%C3%A3o%20exp%C3%B4s%20os%20controles%20necess%C3%A1rios.%20Nenhum%20ajuste%20foi%20aplicado.%27%29%3B%0A%20%20%20%20return%3B%0A%20%20%7D%0A%20%20const%20config%20%3D%20typeof%20player.getPlayerConfig%20%3D%3D%3D%20%27function%27%20%3F%20player.getPlayerConfig%28%29%20%3A%20window.ytplayer%3F.config%3B%0A%20%20if%20%28%21config%3F.args%29%20%7B%0A%20%20%20%20alert%28%27N%C3%A3o%20foi%20poss%C3%ADvel%20obter%20a%20configura%C3%A7%C3%A3o%20do%20player%20para%20recarregar%20o%20%C3%A1udio.%20Nenhum%20ajuste%20foi%20aplicado.%27%29%3B%0A%20%20%20%20return%3B%0A%20%20%7D%0A%20%20document.getElementById%28%27sistema51-youtube-painel%27%29%3F.remove%28%29%3B%0A%20%20const%20keys%20%3D%20%5B%27html5_enable_ac3%27%2C%20%27html5_enable_eac3%27%2C%20%27html5_enable_new_audio_settings_menu%27%5D%3B%0A%20%20const%20originalFlags%20%3D%20%7B...settings.get%28%27EXPERIMENT_FLAGS%27%29%7D%3B%0A%20%20const%20originalArgs%20%3D%20%7B...config.args%7D%3B%0A%20%20const%20originalPreference%20%3D%20player.getUserAudio51Preference%28%29%3B%0A%20%20const%20videoId%20%3D%20new%20URL%28location.href%29.searchParams.get%28%27v%27%29%3B%0A%20%20const%20start%20%3D%20typeof%20player.getCurrentTime%20%3D%3D%3D%20%27function%27%20%3F%20player.getCurrentTime%28%29%20%3A%200%3B%0A%20%20const%20overrides%20%3D%20%7Bhtml5_enable_ac3%3A%20true%2C%20html5_enable_eac3%3A%20false%2C%20html5_enable_new_audio_settings_menu%3A%20true%7D%3B%0A%20%20const%20args%20%3D%20%7B...originalArgs%2C%20video_id%3A%20videoId%2C%20start%3A%20String%28start%29%7D%3B%0A%20%20const%20flags%20%3D%20new%20URLSearchParams%28originalArgs.fflags%20%7C%7C%20%27%27%29%3B%0A%20%20for%20%28const%20key%20of%20keys%29%20flags.set%28key%2C%20String%28overrides%5Bkey%5D%29%29%3B%0A%20%20args.fflags%20%3D%20flags.toString%28%29%3B%0A%20%20const%20panel%20%3D%20document.createElement%28%27section%27%29%3B%0A%20%20panel.id%20%3D%20%27sistema51-youtube-painel%27%3B%0A%20%20panel.style.cssText%20%3D%20%27position%3Afixed%3Bright%3A20px%3Btop%3A85px%3Bz-index%3A2147483647%3Bbackground%3A%23182332%3Bcolor%3A%23fff%3Bpadding%3A18px%3Bborder%3A1px%20solid%20%2394a3b8%3Bborder-radius%3A10px%3Bmax-width%3A380px%3Bfont%3A15px%20system-ui%3Bbox-shadow%3A0%205px%2025px%20%230008%27%3B%0A%20%20const%20title%20%3D%20document.createElement%28%27strong%27%29%3B%0A%20%20title.textContent%20%3D%20%27Teste%20de%20Dolby%20Digital%205.1%27%3B%0A%20%20const%20status%20%3D%20document.createElement%28%27p%27%29%3B%0A%20%20status.textContent%20%3D%20%27Tentando%20selecionar%20AC-3.%20Isto%20ainda%20n%C3%A3o%20confirma%20a%20faixa%20reproduzida.%27%3B%0A%20%20const%20help%20%3D%20document.createElement%28%27p%27%29%3B%0A%20%20help.textContent%20%3D%20%27Confira%20%E2%80%9CEstat%C3%ADsticas%20para%20nerds%E2%80%9D%3A%20%C3%A1udio%20ac-3%20%2F%20formato%20380%20indica%20a%20faixa%20Dolby%20Digital.%20Opus%20%2F%20251%20ou%20AAC%20%2F%20140%20continuam%20sendo%20est%C3%A9reo%20neste%20v%C3%ADdeo.%27%3B%0A%20%20const%20restore%20%3D%20document.createElement%28%27button%27%29%3B%0A%20%20restore.textContent%20%3D%20%27Desfazer%20este%20teste%27%3B%0A%20%20restore.style.cssText%20%3D%20%27padding%3A8px%2012px%3Bbackground%3A%23e2e8f0%3Bcolor%3A%23111%3Bborder%3A0%3Bborder-radius%3A5px%3Bcursor%3Apointer%27%3B%0A%20%20const%20close%20%3D%20document.createElement%28%27button%27%29%3B%0A%20%20close.textContent%20%3D%20%27Fechar%20painel%27%3B%0A%20%20close.style.cssText%20%3D%20restore.style.cssText%20%2B%20%27%3Bmargin-left%3A8px%27%3B%0A%20%20let%20timer%3B%0A%20%20let%20enabled%20%3D%20true%3B%0A%20%20restore.onclick%20%3D%20%28%29%20%3D%3E%20%7B%0A%20%20%20%20enabled%20%3D%20false%3B%0A%20%20%20%20clearTimeout%28timer%29%3B%0A%20%20%20%20settings.set%28%27EXPERIMENT_FLAGS%27%2C%20originalFlags%29%3B%0A%20%20%20%20config.args%20%3D%20originalArgs%3B%0A%20%20%20%20player.setUserAudio51Preference%28originalPreference%2C%20true%29%3B%0A%20%20%20%20player.loadVideoByPlayerVars%28%7B...originalArgs%2C%20video_id%3A%20videoId%2C%0A%20%20%20%20%20%20start%3A%20String%28player.getCurrentTime%3F.%28%29%20%7C%7C%20start%29%7D%29%3B%0A%20%20%20%20status.textContent%20%3D%20%27Configura%C3%A7%C3%A3o%20anterior%20restaurada%20para%20este%20v%C3%ADdeo.%27%3B%0A%20%20%20%20restore.disabled%20%3D%20true%3B%0A%20%20%7D%3B%0A%20%20close.onclick%20%3D%20%28%29%20%3D%3E%20panel.remove%28%29%3B%0A%20%20panel.append%28title%2C%20status%2C%20help%2C%20restore%2C%20close%29%3B%0A%20%20document.body.append%28panel%29%3B%0A%20%20try%20%7B%0A%20%20%20%20settings.set%28%27EXPERIMENT_FLAGS%27%2C%20%7B...originalFlags%2C%20...overrides%7D%29%3B%0A%20%20%20%20config.args%20%3D%20args%3B%0A%20%20%20%20player.loadVideoByPlayerVars%28args%29%3B%0A%20%20%20%20const%20applyPreference%20%3D%20%28remaining%29%20%3D%3E%20%7B%0A%20%20%20%20%20%20if%20%28%21enabled%29%20return%3B%0A%20%20%20%20%20%20try%20%7B%0A%20%20%20%20%20%20%20%20if%20%28typeof%20player.setUserAudio51Preference%20%3D%3D%3D%20%27function%27%29%20%7B%0A%20%20%20%20%20%20%20%20%20%20player.setUserAudio51Preference%281%2C%20true%29%3B%0A%20%20%20%20%20%20%20%20%20%20const%20available%20%3D%20typeof%20player.hasSupportedAudio51Tracks%20%3D%3D%3D%20%27function%27%0A%20%20%20%20%20%20%20%20%20%20%20%20%3F%20player.hasSupportedAudio51Tracks%28%29%20%3A%20null%3B%0A%20%20%20%20%20%20%20%20%20%20const%20preference%20%3D%20player.getUserAudio51Preference%28%29%3B%0A%20%20%20%20%20%20%20%20%20%20status.textContent%20%3D%20available%20%3D%3D%3D%20true%0A%20%20%20%20%20%20%20%20%20%20%20%20%3F%20%60Player%20reconhece%20faixa%205.1%3B%20prefer%C3%AAncia%3A%20%24%7Bpreference%7D.%20Confirme%20o%20codec%20nas%20estat%C3%ADsticas.%60%0A%20%20%20%20%20%20%20%20%20%20%20%20%3A%20%60Prefer%C3%AAncia%3A%20%24%7Bpreference%7D.%20O%20player%20ainda%20n%C3%A3o%20confirmou%20uma%20faixa%205.1%20utiliz%C3%A1vel.%60%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%20%20%7D%20catch%20%28error%29%20%7B%20status.textContent%20%3D%20%27Falha%20ao%20consultar%20o%20player%3A%20%27%20%2B%20error.message%3B%20%7D%0A%20%20%20%20%20%20if%20%28remaining%20%3E%200%29%20timer%20%3D%20setTimeout%28%28%29%20%3D%3E%20applyPreference%28remaining%20-%201%29%2C%201500%29%3B%0A%20%20%20%20%7D%3B%0A%20%20%20%20timer%20%3D%20setTimeout%28%28%29%20%3D%3E%20applyPreference%283%29%2C%201000%29%3B%0A%20%20%7D%20catch%20%28error%29%20%7B%0A%20%20%20%20settings.set%28%27EXPERIMENT_FLAGS%27%2C%20originalFlags%29%3B%0A%20%20%20%20config.args%20%3D%20originalArgs%3B%0A%20%20%20%20status.textContent%20%3D%20%27A%20tentativa%20falhou%3A%20%27%20%2B%20error.message%20%2B%20%27.%20Use%20Desfazer%20para%20restaurar%20o%20player.%27%3B%0A%20%20%7D%0A%7D%29%28%29%3B%0A">YouTube Dolby 5.1 — testar</a></p>
+<p>O sistema global mantém 76,8 ms em FL/FR, 5,8 ms na central, 71 ms em SL/SR e 0 ms no LFE. Uma cópia dos graves da central abaixo de 120 Hz também é somada ao LFE. O Opera decodifica o áudio e a rota do PC o codifica novamente em Dolby Digital para o UD851B.</p>
+<p><small>O favorito opera somente em páginas HTTPS de vídeos do YouTube. Não lê cookies nem envia dados a outros sites. As flags de áudio valem para o player atual; a preferência 5.1 pode persistir no YouTube. Para restaurar, use Desfazer antes de sair do vídeo.</small></p>
+<details><summary>Ver o código</summary><pre>(function () {
+  &#x27;use strict&#x27;;
+  if (location.protocol !== &#x27;https:&#x27; || location.hostname !== &#x27;www.youtube.com&#x27; || location.pathname !== &#x27;/watch&#x27;) {
+    alert(&#x27;Abra um vídeo em https://www.youtube.com/watch antes de usar este favorito.&#x27;);
+    return;
+  }
+  const player = document.getElementById(&#x27;movie_player&#x27;);
+  const settings = window.ytcfg;
+  const required = [&#x27;setUserAudio51Preference&#x27;, &#x27;getUserAudio51Preference&#x27;, &#x27;loadVideoByPlayerVars&#x27;];
+  if (!player || required.some(name =&gt; typeof player[name] !== &#x27;function&#x27;) || !settings?.get || !settings?.set) {
+    alert(&#x27;Esta versão do player não expôs os controles necessários. Nenhum ajuste foi aplicado.&#x27;);
+    return;
+  }
+  const config = typeof player.getPlayerConfig === &#x27;function&#x27; ? player.getPlayerConfig() : window.ytplayer?.config;
+  if (!config?.args) {
+    alert(&#x27;Não foi possível obter a configuração do player para recarregar o áudio. Nenhum ajuste foi aplicado.&#x27;);
+    return;
+  }
+  document.getElementById(&#x27;sistema51-youtube-painel&#x27;)?.remove();
+  const keys = [&#x27;html5_enable_ac3&#x27;, &#x27;html5_enable_eac3&#x27;, &#x27;html5_enable_new_audio_settings_menu&#x27;];
+  const originalFlags = {...settings.get(&#x27;EXPERIMENT_FLAGS&#x27;)};
+  const originalArgs = {...config.args};
+  const originalPreference = player.getUserAudio51Preference();
+  const videoId = new URL(location.href).searchParams.get(&#x27;v&#x27;);
+  const start = typeof player.getCurrentTime === &#x27;function&#x27; ? player.getCurrentTime() : 0;
+  const overrides = {html5_enable_ac3: true, html5_enable_eac3: false, html5_enable_new_audio_settings_menu: true};
+  const args = {...originalArgs, video_id: videoId, start: String(start)};
+  const flags = new URLSearchParams(originalArgs.fflags || &#x27;&#x27;);
+  for (const key of keys) flags.set(key, String(overrides[key]));
+  args.fflags = flags.toString();
+  const panel = document.createElement(&#x27;section&#x27;);
+  panel.id = &#x27;sistema51-youtube-painel&#x27;;
+  panel.style.cssText = &#x27;position:fixed;right:20px;top:85px;z-index:2147483647;background:#182332;color:#fff;padding:18px;border:1px solid #94a3b8;border-radius:10px;max-width:380px;font:15px system-ui;box-shadow:0 5px 25px #0008&#x27;;
+  const title = document.createElement(&#x27;strong&#x27;);
+  title.textContent = &#x27;Teste de Dolby Digital 5.1&#x27;;
+  const status = document.createElement(&#x27;p&#x27;);
+  status.textContent = &#x27;Tentando selecionar AC-3. Isto ainda não confirma a faixa reproduzida.&#x27;;
+  const help = document.createElement(&#x27;p&#x27;);
+  help.textContent = &#x27;Confira “Estatísticas para nerds”: áudio ac-3 / formato 380 indica a faixa Dolby Digital. Opus / 251 ou AAC / 140 continuam sendo estéreo neste vídeo.&#x27;;
+  const restore = document.createElement(&#x27;button&#x27;);
+  restore.textContent = &#x27;Desfazer este teste&#x27;;
+  restore.style.cssText = &#x27;padding:8px 12px;background:#e2e8f0;color:#111;border:0;border-radius:5px;cursor:pointer&#x27;;
+  const close = document.createElement(&#x27;button&#x27;);
+  close.textContent = &#x27;Fechar painel&#x27;;
+  close.style.cssText = restore.style.cssText + &#x27;;margin-left:8px&#x27;;
+  let timer;
+  let enabled = true;
+  restore.onclick = () =&gt; {
+    enabled = false;
+    clearTimeout(timer);
+    settings.set(&#x27;EXPERIMENT_FLAGS&#x27;, originalFlags);
+    config.args = originalArgs;
+    player.setUserAudio51Preference(originalPreference, true);
+    player.loadVideoByPlayerVars({...originalArgs, video_id: videoId,
+      start: String(player.getCurrentTime?.() || start)});
+    status.textContent = &#x27;Configuração anterior restaurada para este vídeo.&#x27;;
+    restore.disabled = true;
+  };
+  close.onclick = () =&gt; panel.remove();
+  panel.append(title, status, help, restore, close);
+  document.body.append(panel);
+  try {
+    settings.set(&#x27;EXPERIMENT_FLAGS&#x27;, {...originalFlags, ...overrides});
+    config.args = args;
+    player.loadVideoByPlayerVars(args);
+    const applyPreference = (remaining) =&gt; {
+      if (!enabled) return;
+      try {
+        if (typeof player.setUserAudio51Preference === &#x27;function&#x27;) {
+          player.setUserAudio51Preference(1, true);
+          const available = typeof player.hasSupportedAudio51Tracks === &#x27;function&#x27;
+            ? player.hasSupportedAudio51Tracks() : null;
+          const preference = player.getUserAudio51Preference();
+          status.textContent = available === true
+            ? `Player reconhece faixa 5.1; preferência: ${preference}. Confirme o codec nas estatísticas.`
+            : `Preferência: ${preference}. O player ainda não confirmou uma faixa 5.1 utilizável.`;
+        }
+      } catch (error) { status.textContent = &#x27;Falha ao consultar o player: &#x27; + error.message; }
+      if (remaining &gt; 0) timer = setTimeout(() =&gt; applyPreference(remaining - 1), 1500);
+    };
+    timer = setTimeout(() =&gt; applyPreference(3), 1000);
+  } catch (error) {
+    settings.set(&#x27;EXPERIMENT_FLAGS&#x27;, originalFlags);
+    config.args = originalArgs;
+    status.textContent = &#x27;A tentativa falhou: &#x27; + error.message + &#x27;. Use Desfazer para restaurar o player.&#x27;;
+  }
+})();
+</pre></details></html>

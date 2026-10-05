@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Capacidade de áudio do Opera</title>
+<style>body{font:18px system-ui,sans-serif;background:#111827;color:#e5e7eb;max-width:850px;margin:50px auto;padding:24px}h1{font-size:32px}p{line-height:1.6}section{background:#1f2937;border-radius:14px;padding:24px;margin:20px 0}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:12px 0;border-bottom:1px solid #374151}a{color:#93c5fd}.good{color:#86efac}.note{color:#cbd5e1;font-size:16px}button{font:inherit;padding:12px 20px;border:0;border-radius:9px;background:#2563eb;color:white;cursor:pointer}</style>
+<h1>Capacidade de áudio do Opera</h1>
+<p>Esta página verifica a saída multicanal e os decodificadores declarados pelo navegador. Não altera configurações e não transmite dados.</p>
+<section><h2>Saída de áudio</h2><p id="output">Verificando…</p><p class="note">Se a saída informar seis canais, o navegador pode usar áudio multicanal por Web Audio. Isso não prova que um site está enviando uma faixa 5.1.</p></section>
+<section><h2>Decodificação declarada para seis canais</h2><table><thead><tr><th>Formato</th><th>Disponibilidade</th></tr></thead><tbody id="codecs"></tbody></table></section>
+<section><h2>YouTube no Opera</h2><p>O YouTube documenta o botão Surround 5.1 para vídeos e dispositivos compatíveis, como TVs e aparelhos de streaming. O Opera para PC não consta nessa lista. Uma saída de seis canais no Windows não habilita esse botão por si só.</p><p>Na configuração deste PC, áudio estéreo do YouTube continua sendo expandido pelo sistema. Isso é upmix, sem uma faixa 5.1 original do vídeo.</p><a href="https://support.google.com/youtube/answer/11904456?hl=pt-BR" target="_blank" rel="noopener">Documentação oficial do YouTube</a></section>
+<button id="refresh">Verificar novamente</button>
+<script>
+async function verify(){
+ const output=document.getElementById('output'),table=document.getElementById('codecs');table.textContent='';
+ try {const context=new AudioContext(); const count=context.destination.maxChannelCount;output.textContent=`Máximo declarado: ${count} canais. Taxa: ${context.sampleRate} Hz.`;output.className=count>=6?'good':'';await context.close();}catch(e){output.textContent='Não foi possível consultar a saída: '+e.message;}
+ for(const [name,contentType] of [['Opus','audio/webm; codecs="opus"'],['AAC','audio/mp4; codecs="mp4a.40.2"'],['Dolby Digital (AC-3)','audio/mp4; codecs="ac-3"'],['Dolby Digital Plus (E-AC-3)','audio/mp4; codecs="ec-3"']]){
+  const row=document.createElement('tr'),label=document.createElement('td'),result=document.createElement('td');label.textContent=name;
+  try{const info=await navigator.mediaCapabilities.decodingInfo({type:'media-source',audio:{contentType,channels:'6',bitrate:448000,samplerate:48000}});result.textContent=info.supported?'Suportado pelo navegador':'Não suportado';if(info.supported)result.className='good';}catch(e){result.textContent='Consulta indisponível';}
+  row.append(label,result);table.append(row);
+ }
+}
+document.getElementById('refresh').onclick=verify;verify();
+</script></html>

@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Dolby 5.1 — Sistema artesanal",
+  "version": "0.1.0",
+  "description": "Experimento local: corrige a consulta de canais e solicita AC-3 no player do YouTube.",
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["audio51.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

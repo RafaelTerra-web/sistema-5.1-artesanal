@@ -1,0 +1,17 @@
+# Equalizer APO: FL/FR/SL/SR com 70 ms; CEN/LFE sem atraso adicional.
+# Nome do arquivo mantido para preservar o Include ja instalado.
+# CEN e LFE permanecem sem atraso adicional neste perfil.
+# Saida HDMI identificada apos a conexao: SONY TV *00 (NVIDIA High Definition Audio).
+# O GUID abaixo evita aplicar este perfil em outras saidas do PC.
+# Aplicavel aos dois layouts 5.1 do Windows: surround lateral ou traseiro.
+
+Device: {0AA75AE7-E336-4CD9-8281-33745F0863E0}; {e89cb1c3-e885-4df2-800f-ac950f115f89}
+Stage: post-mix
+If: outputChannelCount == 6
+    Channel: 1 2 5 6
+    Delay: 70 ms
+    Channel: all
+EndIf:
+
+
+

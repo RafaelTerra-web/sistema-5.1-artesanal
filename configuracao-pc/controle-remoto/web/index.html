@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#10151e">
+  <title>Controle 5.1</title>
+  <link rel="icon" href="/icon.svg">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+</head>
+<body><main>
+  <header>
+    <div><span class="eyebrow">SEU CINEMA · REDE LOCAL</span><h1>Controle 5.1</h1></div>
+    <button id="reconnect" class="connection pill" title="Atualizar conexão"><span class="status-dot"></span><span id="connection">Conectando</span></button>
+  </header>
+  <section id="pair" class="card" hidden>
+    <h2>Conectar ao PC</h2><p>Digite o PIN mostrado no PC ao abrir “Controle remoto do PC”.</p>
+    <form id="pairForm"><label for="pin">PIN de 6 dígitos</label><input id="pin" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required placeholder="••••••"><button class="primary" type="submit">Conectar celular</button></form>
+  </section>
+  <div id="remote" hidden>
+    <nav aria-label="Seções" role="tablist">
+      <button id="remoteTab" role="tab" aria-controls="controls" aria-selected="true" class="selected">Controle</button>
+      <button id="audioTab" role="tab" aria-controls="audioPanel" aria-selected="false">Áudio</button>
+      <button id="setupTab" role="tab" aria-controls="applications" aria-selected="false">Aplicativos</button>
+    </nav>
+    <div id="controls" role="tabpanel" aria-labelledby="remoteTab">
+      <section class="card player-card">
+        <label for="target">Controlar reprodução</label><select id="target"><option value="">Aplicativo escolhido abaixo / mídia do Windows</option></select>
+        <div class="row player-title"><h2 id="title">Abra um vídeo no PC</h2><span id="playingState" class="pill subdued">Sem vídeo</span></div>
+        <div class="transport"><button id="back" aria-label="Voltar dez segundos">↶<small>10 s</small></button><button id="playPause" class="play" aria-label="Pausar ou continuar">▶</button><button id="forward" aria-label="Avançar dez segundos">↷<small>10 s</small></button></div>
+        <p id="timeline" class="timeline">Escolha o aplicativo acima</p>
+      </section>
+      <section class="card navigation-card">
+        <div class="row"><h2>Navegar nos aplicativos</h2><span class="subtle">Segure as setas</span></div>
+        <button id="controlNetflix" class="accent">Controlar Netflix</button>
+        <label for="navTarget">Aplicativo do PC</label><select id="navTarget"><option value="foreground">Aplicativo em primeiro plano</option></select>
+        <label for="navMode">Modo do controle</label><select id="navMode"><option value="keyboard">Teclado · setas e Enter</option><option value="mouse">Mouse · setas e clique</option></select>
+        <p id="navHint" class="subtle">Escolha a janela Netflix, Jellyfin ou outro aplicativo.</p>
+        <div class="dpad" role="group" aria-label="Controle direcional universal">
+          <button data-nav="up" class="direction up" aria-label="Cima">▲</button><button data-nav="left" class="direction left" aria-label="Esquerda">◀</button><button data-nav="select" class="ok" aria-label="OK, selecionar">OK</button><button data-nav="right" class="direction right" aria-label="Direita">▶</button><button data-nav="down" class="direction down" aria-label="Baixo">▼</button>
+        </div>
+        <div class="nav-shortcuts"><button data-nav="back" aria-label="Voltar na interface">↩<small>Voltar</small></button><button data-nav="home">⌂<small>Início</small></button><button data-nav="search">⌕<small>Buscar</small></button><button data-nav="fullscreen">⛶<small>Tela cheia</small></button></div>
+        <div class="universal-shortcuts"><button data-nav="shifttab">Foco anterior</button><button data-nav="tab">Próximo foco</button><button data-nav="space">Reproduzir / pausar</button><button data-nav="skipintro">Pular intro Netflix</button><button data-nav="browserback">Página anterior</button><button data-nav="scrollup">Rolar ↑</button><button data-nav="scrolldown">Rolar ↓</button></div>
+        <div id="touchpad" class="touchpad" hidden role="button" tabindex="0" aria-label="Área para mover o mouse e clicar">Arraste para mover o mouse<br><small>Toque para clicar</small></div>
+        <form id="textForm" hidden><label for="remoteText">Texto para o campo selecionado no PC</label><div class="text-row"><input id="remoteText" type="search" maxlength="500" autocomplete="off" placeholder="Nome do filme ou série"><button type="submit" aria-label="Enviar texto ao aplicativo">Enviar</button></div><p class="subtle">Selecione o campo no aplicativo usando Tab ou mouse antes de enviar.</p></form>
+        <details><summary>Usar no catálogo da Netflix</summary><p>Selecione a janela Netflix. Use Próximo foco e OK, ou mude para Mouse, arraste o dedo e toque no título. Pular intro envia o atalho da Netflix quando a introdução estiver disponível. No Jellyfin, o modo TV continua disponível para navegar só com as setas.</p></details>
+      </section>
+      <section class="card tracks-card">
+        <div class="row"><h2>Áudio e legendas</h2><button id="refreshTracks" class="small secondary" aria-label="Atualizar faixas de áudio e legendas">Atualizar</button></div>
+        <p id="tracksHint" class="subtle">Escolha uma sessão Jellyfin ou Netflix com extensão.</p>
+        <label for="audioTrack">Faixa de áudio</label><select id="audioTrack" disabled><option>Indisponível neste aplicativo</option></select><label for="subtitleTrack">Legendas</label><select id="subtitleTrack" disabled><option>Indisponível neste aplicativo</option></select>
+        <div class="row equal explicit-transport"><button id="pause">Pausar</button><button id="resume">Continuar</button></div>
+      </section>
+    </div>
+    <div id="audioPanel" role="tabpanel" aria-labelledby="audioTab" hidden>
+      <section class="card system-card">
+        <div class="row"><h2>Sistema de áudio</h2><span id="audioBadge" class="pill subdued">Verificando</span></div><p id="audioState">Verificando a rota de áudio</p>
+        <div class="row equal"><button id="audioOn" class="accent">Ligar 5.1</button><button id="audioOff">Áudio direto</button></div><p id="systemMessage" class="subtle">Áudio direto encerra o processamento e libera o HDMI.</p>
+      </section>
+      <section class="card">
+        <h2>Qualidade da saída</h2><div class="profile-options"><button data-profile="Fidelidade" aria-pressed="false"><b>Fidelidade</b><small>Dolby Digital · 640 kbps</small></button><button data-profile="Estavel" aria-pressed="false"><b>Estabilidade</b><small>Dolby Digital · 448 kbps</small></button></div><p class="subtle">Trocar o perfil pode interromper o som por alguns segundos.</p>
+        <h2 class="section-title">Conteúdo estéreo</h2><div class="row equal"><button id="upmixAuto" aria-pressed="false">Upmix automático</button><button id="upmixNative" aria-pressed="false">Preservar 5.1</button></div><p class="subtle">Preservar 5.1 evita expandir trechos multicanal com apenas os frontais ativos. Fontes declaradas estéreo continuam distribuídas entre as caixas.</p>
+      </section>
+      <section class="card">
+        <h2>Correção entre as caixas</h2><div class="channel-row"><span>FL · FR</span><strong>76,8 ms</strong></div><div class="channel-row"><span>Central</span><strong>5,8 ms</strong></div><div class="channel-row"><span>SL · SR</span><strong>71 ms</strong></div><div class="channel-row"><span>LFE</span><strong>0 ms</strong></div><p class="subtle">Os graves da central abaixo de 120 Hz também são somados ao LFE; a central continua com sua faixa completa. Volume e perfis preservam esses ajustes.</p>
+        <details><summary>Estado do sistema</summary><dl id="diagnostics"><dt>Conexão</dt><dd>Verificando</dd></dl><button id="refreshStatus" class="small secondary">Atualizar estado</button></details>
+      </section>
+    </div>
+    <div id="applications" role="tabpanel" aria-labelledby="setupTab" hidden>
+      <section class="card"><h2>Conectar Jellyfin</h2><p>Entre com seu usuário do servidor deste PC. Deixe o Jellyfin aberto no navegador do PC para navegar e controlar a reprodução.</p><form id="jellyForm"><label for="jellyUser">Usuário</label><input id="jellyUser" autocomplete="username" required><label for="jellyPassword">Senha</label><input id="jellyPassword" type="password" autocomplete="current-password"><button class="primary" type="submit">Entrar no Jellyfin</button></form><p id="jellyStatus" class="subtle">A senha não é salva pelo controle.</p></section>
+      <section class="card"><h2>Netflix · Dolby 5.1</h2><p>Abra a Netflix com o ajuste surround automático e saída Dolby Digital a 640 kbps. Durante um filme, use pausar, continuar, avançar, voltar e o volume mestre na aba Controle.</p><button id="openNetflix" class="primary">Abrir Netflix 5.1 no PC</button><button id="openNetflixBrowser">Abrir no Edge</button><p>Para áudio e legendas pelo celular, conecte a extensão abaixo e escolha “Netflix · extensão” em Controlar reprodução.</p><p id="bridgeStatus" class="subtle">Extensão não conectada</p><details><summary>Instalar a extensão no PC</summary><ol><li>Abra <b>edge://extensions</b>.</li><li>Ative <b>Modo de desenvolvedor</b>.</li><li>Escolha <b>Carregar sem compactação</b>.</li><li>Selecione <b>configuracao-pc/controle-remoto/extension</b> no projeto.</li><li>Atualize a Netflix. Se o app não aceitar a extensão, use a Netflix em uma aba do Edge.</li></ol><p>A troca de faixas depende da versão do player Netflix.</p></details></section>
+      <section class="card"><h2>No seu celular</h2><p>PC e celular precisam estar na mesma rede. Use <b>Adicionar à tela inicial</b> no Chrome ou Samsung Internet.</p><p class="subtle">Suas escolhas de aplicativo e aba ficam lembradas neste navegador. Após reiniciar o servidor do controle, entre novamente com o PIN.</p><button id="logout">Desconectar este celular</button></section>
+    </div>
+    <section class="volume-dock" aria-label="Volume mestre das seis caixas">
+      <div class="row"><div><span class="volume-caption">VOLUME MESTRE</span><strong id="volumeValue">100</strong><small>%</small></div><button id="mute" class="small" aria-pressed="false">Mudo</button></div><div class="volume-controls"><button id="volumeDown" aria-label="Diminuir volume cinco pontos">−</button><label for="volume" class="sr-only">Volume das seis caixas</label><input id="volume" type="range" min="0" max="100" value="100"><button id="volumeUp" aria-label="Aumentar volume cinco pontos">+</button></div>
+    </section>
+  </div><footer>Controle local · suas seis caixas, juntas</footer>
+</main><div id="toast" role="status" hidden></div></body></html>

@@ -1,0 +1,13 @@
+{
+  "name": "sistema-5.1-artesanal",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Audio 5.1 no Windows, DSP, gerenciamento e controle remoto local",
+  "engines": {"node": ">=22"},
+  "scripts": {
+    "test": "node --test configuracao-pc/controle-remoto/test-web-ui.mjs configuracao-pc/controle-remoto/backend.test.mjs && node --test configuracao-pc/youtube-dolby51-extensao.test.cjs",
+    "test:ui": "node --test configuracao-pc/controle-remoto/test-web-ui.mjs",
+    "test:backend": "node --test configuracao-pc/controle-remoto/backend.test.mjs",
+    "test:netflix": "python -m unittest discover -s configuracao-pc/netflix-dolby51-automatico -p test_cadmiumconfig.py -v"
+  }
+}

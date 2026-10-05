@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<title>Netflix — teste de áudio 5.1</title>
+<style>
+body{font:17px/1.6 system-ui,sans-serif;max-width:850px;margin:40px auto;padding:0 24px;background:#111827;color:#f3f4f6}h1{line-height:1.25}a{color:#93c5fd}input{box-sizing:border-box;width:100%;padding:12px;font:inherit}button,.bookmark{display:inline-block;padding:12px 18px;margin:12px 8px 12px 0;border:0;border-radius:8px;background:#2563eb;color:white;text-decoration:none;font:inherit;cursor:pointer}.secondary{background:#374151}#status{white-space:pre-wrap}small{color:#cbd5e1}
+</style>
+<h1>Netflix: tentar liberar a faixa 5.1</h1>
+<p><b>Abertura automática configurada neste PC em 03/10/2026.</b> Use Netflix - Dolby 5.1 na Área de Trabalho ou no Menu Iniciar. O atalho abre o app com o ajuste aplicado. Os favoritos abaixo são opcionais para diagnóstico e testes.</p>
+<p>O ajuste solicita Dolby Digital Plus 5.1 e seu perfil de maior qualidade ao player. A rota do PC converte o áudio para Dolby Digital a 640 kbit/s, mantendo 76,8 ms em FL/FR, 5,8 ms na central, 71 ms em SL/SR e 0 ms no LFE. Uma cópia dos graves da central abaixo de 120 Hz também é somada ao LFE, sem cortar a central.</p>
+<p>Arraste estes botões para a barra de favoritos do Edge. Abra um filme ou episódio e clique em <b>Tentar Netflix 5.1</b>. A página será recarregada.</p>
+<a id="apply" class="bookmark">Tentar Netflix 5.1</a>
+<a id="check" class="bookmark secondary">Conferir Netflix 5.1</a>
+<a id="undo" class="bookmark secondary">Desfazer teste Netflix</a>
+<p>Depois, abra <b>Áudio e legendas</b> e procure uma faixa <b>(5.1)</b>. Os parâmetros aceitos pelo player e som em seis caixas, sozinhos, não comprovam que a fonte é 5.1.</p>
+<h2>Ou cole o link do filme/episódio</h2>
+<label for="watch">Link que começa com https://www.netflix.com/watch/…</label>
+<input id="watch" type="url" placeholder="https://www.netflix.com/watch/…">
+<button id="open">Abrir com o ajuste</button>
+<p id="status" role="status"></p>
+<small>Teste de URL baseado no player público 6.0063.110.911. Os atalhos aplicam os parâmetros em cada abertura. O favorito Desfazer remove somente os parâmetros da URL atual; o comando Netflix - desfazer 5.1 automatico.cmd desabilita a abertura com ajuste. Nenhuma configuração da conta é alterada.</small>
+<p><a href="https://help.netflix.com/pt/node/14163">Ajuda oficial da Netflix sobre 5.1</a></p>
+<script>
+function netflix51Url(href,undo=false){
+ const u=new URL(href);
+ if(u.protocol!=='https:'||u.hostname!=='www.netflix.com'||!/^\/watch\/\d+\/?$/.test(u.pathname))throw new Error('Abra um filme ou episódio na Netflix antes de aplicar o teste.');
+ const settings={enableDDPlus51:'true',enableDDPlusAtmos:'false',audioCapabilityDetectorType:'0',spatialRenderingForDolbyAudio:'false',enableMediaCapabilities:'true',audioProfiles:'heaac-2-dash|heaac-2hq-dash|xheaac-dash|ddplus-5.1-dash|ddplus-5.1hq-dash'};
+ const keys=Object.keys(settings).map(k=>k.toLowerCase());
+ for(const key of [...u.searchParams.keys()])if(keys.includes(key.toLowerCase()))u.searchParams.delete(key);
+ if(!undo)for(const [key,value]of Object.entries(settings))u.searchParams.set(key,value);
+ return u.href;
+}
+function netflix51Check(){
+ if(location.hostname!=='www.netflix.com'){alert('Abra um filme ou episódio da Netflix para conferir.');return;}
+ const config=window._cad_global?.config;
+ if(!config){alert('A configuração do player ainda não está disponível. Inicie um filme ou episódio e tente novamente.');return;}
+ const keys=['enableDDPlus51','enableDDPlusAtmos','audioCapabilityDetectorType','spatialRenderingForDolbyAudio','enableMediaCapabilities'];
+ const result={};for(const key of keys)result[key]=config[key]??'não informado';
+ result.audioProfiles=Array.isArray(config.audioProfiles)?config.audioProfiles.map(p=>typeof p==='string'?p:p?.name).filter(Boolean):'não informado';
+ try{
+  const groups=window.netflix?.player?.getMostRecentPlaybackDiagnosticGroups?.();
+  if(Array.isArray(groups)){
+   const audio=groups.find(g=>g&&Object.prototype.hasOwnProperty.call(g,'Audio Track'))?.['Audio Track'];
+   const rate=groups.find(g=>g&&Object.prototype.hasOwnProperty.call(g,'Playing bitrate (a/v)'))?.['Playing bitrate (a/v)'];
+   const channels=typeof audio==='string'?audio.match(/Channels:\s*(\d+)/)?.[1]:null;
+   const codec=typeof audio==='string'?audio.match(/Codec:\s*(audio\/[a-z0-9.+-]+;\s*codecs=[a-z0-9.+-]+)(?:\s*\(([a-z0-9.+-]+)\))?/i):null;
+   const bitrate=typeof rate==='string'?rate.match(/^\s*(\d+(?:\.\d+)?)/)?.[1]:null;
+   result.audioReproduzido={canais:channels??'não informado',codec:codec?.[1]??'não informado',perfil:codec?.[2]??'não informado',bitrateKbps:bitrate??'não informado'};
+  }
+ }catch(e){result.audioReproduzido='Diagnóstico indisponível nesta versão.';}
+ alert('Netflix — configuração e áudio recebido:\n'+JSON.stringify(result,null,2)+'\n\n6 canais e codec ec-3 indicam a faixa Dolby Digital Plus 5.1. Apenas as opções habilitadas não comprovam a faixa.');
+}
+const bookmark=(body)=>'javascript:'+encodeURIComponent('(function(){'+body+'})()');
+document.getElementById('apply').href=bookmark('try{location.href=('+netflix51Url.toString()+')(location.href)}catch(e){alert(e.message)}');
+document.getElementById('undo').href=bookmark('try{location.href=('+netflix51Url.toString()+')(location.href,true)}catch(e){alert(e.message)}');
+document.getElementById('check').href=bookmark('('+netflix51Check.toString()+')()');
+document.getElementById('open').onclick=()=>{try{location.href=netflix51Url(document.getElementById('watch').value.trim())}catch(e){document.getElementById('status').textContent=e.message}};
+</script>
+</html>
