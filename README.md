@@ -6,12 +6,13 @@ Código desenvolvido para transformar o áudio compartilhado do Windows em Dolby
 
 ## Plano aprovado para o Galaxy A34
 
-A próxima implementação mantém o Fire TV como player e usa o A34 como DSP, com uma interface CM6206 candidata. A direção mais recente investiga a saída óptica da Sony e as saídas analógicas da interface nos amplificadores, deixando o UD851B fora dessa rota. **O APK e a cadeia USB/óptica ainda não foram implementados nem validados.**
+A próxima implementação mantém o Fire TV como player e usa o A34 como DSP, com uma interface CM6206 cuja compra foi informada pelo usuário em 06/10/2026, junto com um hub PD. A direção mais recente investiga a saída óptica da Sony e as saídas analógicas da interface nos amplificadores, deixando o UD851B fora dessa rota. **O APK e a cadeia USB/óptica ainda não foram implementados nem validados.**
 
 - [Arquitetura, diagramas, calibração, latência e sincronismo](docs/A34-DSP.md).
 - [Programação Android pelo PC e roteiro de validação](docs/A34-DESENVOLVIMENTO-E-VALIDACAO.md).
 - [Orçamento em reais, alternativas e pesquisa de hardware](docs/A34-ORCAMENTO-E-PESQUISA.md).
 - [Notas complementares: Sony/DTS, controle de volume, PC-USB do decoder e reaproveitamento de cabos](docs/A34-NOTAS-COMPLEMENTARES.md).
+- [Estudo de viabilidade: atualizar e diagnosticar o A34 pelo Wi-Fi sem desmontar a montagem](docs/A34-MANUTENCAO-SEM-FIO.md).
 
 O manual da Sony documenta Dolby Digital/DTS na óptica e conversão DD+ → DD; o percurso real pelos aplicativos ainda precisa de teste. A captura comprimida íntegra/simultânea pela CM6206 e as capacidades PC-USB do UD851B são condições abertas. Os subtotais são referências anteriores, não ofertas ou funcionamento garantidos.
 

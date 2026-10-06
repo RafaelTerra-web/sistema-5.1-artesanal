@@ -50,3 +50,7 @@ A criação privada descrita acima é histórica; o usuário tornou o repositór
 ## Notas complementares de conhecimento — 05/10/2026
 
 Incluídas conclusões da discussão sobre Sony/DTS, controle de volume pelo Fire TV, retorno ao UD851B, limites ainda desconhecidos da PC-USB e reaproveitamento de cabos. Guias e índice foram alinhados à direção mais recente. A atualização contém documentação e links; não contém novas cotações, imagens privadas, dados de entrega, credenciais, firmware ou implementação Android/ESP32.
+
+## Estudo de manutenção sem fio — 06/10/2026
+
+Incluído estudo de viabilidade para atualizar e diagnosticar o aplicativo do A34 por ADB sem fio com a interface conectada, distinguir código e parâmetros, preservar perfis e testar retomada do áudio. Compras da CM6206 e do hub PD foram registradas como informações do usuário, sem presumir teste concluído. Publicados apenas documentação e links, sem chaves de assinatura, códigos de pareamento, endereços privados ou credenciais.

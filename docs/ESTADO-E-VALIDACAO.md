@@ -66,6 +66,10 @@ O usuário escolheu manter o Fire TV e desenvolver um DSP no Galaxy A34 existent
 
 A direção mais recente usa a óptica Sony e as saídas analógicas da CM6206, deixando o UD851B fora da rota processada. O manual exato da Sony documenta Dolby Digital/DTS e conversão DD+ → DD, mas o percurso real pelos aplicativos não foi testado; a CM6206 precisa comprovar captura íntegra e reprodução multicanal simultânea no A34. Os valores de latência são estimativas de planejamento, não resultados de testes. O ajuste AV do Fire TV é candidato à compensação de sincronismo, com alcance e efeito no caminho Dolby Digital ainda a validar.
 
-Não foram realizados compras, instalação no telefone, root, troca de OS, alteração de firmware ou teste físico da cadeia. Os resultados Windows acima continuam específicos da implementação existente.
+Na publicação inicial de 05/10/2026 não haviam sido informadas compras, instalação no telefone, root, troca de OS, alteração de firmware ou teste físico da cadeia. Os resultados Windows acima continuam específicos da implementação existente.
 
 As [notas complementares de conhecimento](A34-NOTAS-COMPLEMENTARES.md) registram o Fire TV 4K de 2ª geração informado pelo usuário, limites de bitrate documentados, controle de volume proposto por IR/Wi-Fi, retorno óptico ou PC-USB ao UD851B e adaptação dos cabos existentes. Seis canais HDMI foram informados; seis canais/captura pela PC-USB continuam desconhecidos. Não há firmware ESP32, controle remoto Android ou teste físico acrescentado por essa atualização.
+
+## Atualização de conhecimento — 06/10/2026
+
+O usuário informou compra da CM6206 e de um hub PD. A chegada da placa e o funcionamento da combinação ainda estão pendentes. Foi registrado o [estudo de viabilidade de manutenção sem fio](A34-MANUTENCAO-SEM-FIO.md), com ADB pela rede, preservação de perfis, interrupção de áudio durante atualização e painel web como possibilidade. Não foram realizados pareamento, instalação de APK, teste no A34 nem implementação do painel por essa publicação.

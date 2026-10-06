@@ -4,7 +4,7 @@ Plano aprovado em 05/10/2026. A arquitetura e as condições físicas estão em 
 
 ## Desenvolvimento no PC e execução no telefone
 
-Primeiro conectar A34 → cabo USB com dados → PC e habilitar depuração USB nas opções do desenvolvedor. Preparar Android Studio ou ferramentas equivalentes, SDK, NDK e ADB. O PC compila, instala o APK e lê logs; o código de processamento roda no próprio A34.
+Preparar Android Studio ou ferramentas equivalentes, SDK, NDK e ADB. A instalação e depuração podem começar por cabo USB de dados ou pelo pareamento ADB sem fio disponível no Android 11 ou superior; o pareamento sem fio não exige cabo USB. O PC compila, instala o APK e lê logs; o código de processamento roda no próprio A34. Consulte o [estudo de manutenção sem desmontar a montagem](A34-MANUTENCAO-SEM-FIO.md) para atualizar pela rede com a interface conectada.
 
 Antes da interface, testar decodificação e DSP com arquivos AC-3/WAV 5.1 conhecidos. Exportar os seis canais processados e comparar com referências do programa Windows. O alto-falante do telefone, que não representa seis saídas independentes, não é um teste de reprodução 5.1.
 
@@ -62,7 +62,7 @@ Na opção econômica, a saída USB é PCM, sem recodificação AC-3. Na alterna
 ### 0. Resolver as condições físicas
 
 - Priorizar teste da óptica Sony com o UD851B e o cabo existentes; o manual exato já documenta codecs e conversão DD+ → DD. OPTICAL OUT do decoder permanece não confirmado e só é necessário na alternativa histórica.
-- Testar reprodução/gravação e canais pela PC-USB do UD851B antes de comprar a interface; HDMI 5.1 não comprova USB 5.1.
+- Em 06/10/2026, o usuário informou compra da CM6206 e de um hub PD; aguardar a interface e validar a unidade real. Testar a PC-USB do UD851B continua opcional para investigar alternativas; HDMI 5.1 não comprova USB 5.1.
 - A 2ª geração do Fire TV foi informada pelo usuário; registrar firmware, selecionar formato compatível e validar 4K60 na TV.
 - Registrar versão Android/One UI do A34 e portas da interface candidata.
 - Não assumir que um extrator simples converte Dolby Digital Plus para Dolby Digital.
@@ -109,6 +109,10 @@ O método Android de loopback/OboeTester é útil como referência de entrada e 
 ### 5. Uso independente do PC
 
 Salvar perfis no A34; disponibilizar iniciar/parar, bypass dos efeitos, volumes e diagnóstico. Confirmar retomada após reiniciar/reconectar e operação contínua antes de deixar o sistema como equipamento dedicado. A primeira versão deve priorizar transporte e diagnóstico; o painel completo vem depois de comprovar a interface.
+
+### 6. Validar manutenção sem retirar os cabos
+
+Seguir os critérios do [estudo de manutenção sem fio](A34-MANUTENCAO-SEM-FIO.md): parear, instalar versões pela rede, preservar perfis, consultar logs e retomar o áudio após atualização. Testar reconexão ADB, permissão USB e carga com o hub. Separar atualização de código de edição de parâmetros; o painel web no A34 permanece proposta.
 
 ## Registro das evidências
 
