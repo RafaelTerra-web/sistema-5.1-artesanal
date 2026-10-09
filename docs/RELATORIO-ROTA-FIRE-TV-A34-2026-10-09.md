@@ -131,4 +131,16 @@ Referências: [manual Sony usado na investigação](https://www.sony.com/electro
 
 ## Publicação e CI
 
+### Diagnóstico adicional sem outro cabo USB
+
+O usuário não dispõe de outro cabo USB nem de Fire TV para comparação imediata. Foi encontrado e corrigido um erro no leitor de diagnóstico Windows: FileStream usava buffer de 512 bytes para relatórios HID de cinco bytes. O leitor agora usa buffer 1, valida os tamanhos exatos 5/4 e seleciona somente a interface MI_03. Depois dessa mudança, seis registradores e captura óptica voltaram a responder sem nova reconexão física. Isso mostra uma contribuição de software; não prova que toda a instabilidade vinha desse buffer.
+
+Captura isolada, sem saída DAC simultânea: 51.840 frames/207.360 bytes em 3,004 s, sem flag de descontinuidade. Foram encontrados 33 candidatos AC-3/48 kHz/seis canais/640 kbit/s: **13 CRC válidos e 20 inválidos**. Apenas cinco de 32 intervalos tiveram os 1.536 frames esperados. Ausência de flags WASAPI não comprovou continuidade ou integridade; a corrupção já aparece na captura isolada.
+
+Após essa recuperação, a rota óptica com saída USB **seis canais** abriu e o relógio de reprodução avançou durante aproximadamente 30 s. Ainda acumulou CRC e encerrou após `invalid bitstream id`. Portanto o duplex de seis canais funciona nessa janela, mas não foi aprovado como fluxo contínuo íntegro.
+
+Comparação com encoder PC de 448 kbit/s: a amostra recebida continuou anunciando **640 kbit/s**, teve 12 quadros candidatos completos, nenhum CRC válido e nenhum intervalo normal entre preâmbulos. O sinal recebido não foi uma cópia transparente do formato escolhido no encoder. Como as amostras não são uma captura simultânea antes/depois da TV, não se deve atribuir toda a corrupção à Bravia apenas por isso.
+
+Foi acrescentado `KeepDeviceAlive` como opção diagnóstica, desligada por padrão, usando [audio-stream-silence do mpv](https://mpv.io/manual/stable/#options-audio-stream-silence) para reduzir Stop/Start em pausas. A rodada não resolveu a integridade e terminou sem nova aprovação de áudio. Próxima comparação preparada: loop físico CM SPDIF OUT → IN, com PCM sintético conhecido e amplificadores desligados, para separar TV e encoder do caminho USB/CM. A reprodução desse teste aguarda a mudança dos cabos e a autorização explícita do usuário.
+
 Código e relatório publicados no GitHub. [CI Android](https://github.com/RafaelTerra-web/sistema-5.1-artesanal/actions/runs/37989271388) e [testes isolados](https://github.com/RafaelTerra-web/sistema-5.1-artesanal/actions/runs/37989271562) passaram. O ensaio adicional em arquivo da saída óptica de seis canais comparou 436.838 frames completos com a referência, erro máximo zero. Esses resultados não substituem a sessão física contínua, ainda bloqueada.

@@ -218,13 +218,14 @@ class Session:
                 '-ConfigPath', dsp_dir/'pcm.conf', '-IpcPath', self.launch['IpcPath']]
             if self.cfg.get('Shared', False): args += ['-Shared']
             if self.cfg.get('Muted', False): args += ['-Muted']
+            if self.cfg.get('KeepOpticalDeviceAlive', False): args += ['-KeepDeviceAlive']
             self.start_child('scripts/pc-cm6206-optical.ps1', args, 'optical')
             if self.cfg.get('EncodePcToHdmi', True):
                 self.start_child('scripts/pc-cm6206-encoder.ps1', [
                     '-MpvPath', self.cfg['MpvPath'], '-CaptureEndpointId', self.cfg['CaptureEndpointId'],
                     '-RenderEndpointId', self.cfg['HdmiEndpointId'], '-StopPath', self.run/'encoder.stop',
                     '-LogPath', self.run/'encoder.log', '-StatusPath', self.run/'encoder-status.json',
-                    '-InputMode', self.state['InputMode']], 'encoder')
+                    '-InputMode', self.state['InputMode'], '-Bitrate', self.cfg.get('Bitrate', 640)], 'encoder')
 
     def live_progress(self):
         if self.state['Modo'] == 'Optical':

@@ -84,7 +84,7 @@ namespace Sistema51.Cm6206
             return BuildContinuousMpvArguments(renderEndpointId, logFile, gain, shared, configPath, ipcPath, muted, DefaultNativeDelaySamplesCsv);
         }
 
-        public static string BuildContinuousMpvArguments(string renderEndpointId, string logFile, double gain, bool shared, string configPath, string ipcPath, bool muted, string delaySamplesCsv, int outputChannels = 8)
+        public static string BuildContinuousMpvArguments(string renderEndpointId, string logFile, double gain, bool shared, string configPath, string ipcPath, bool muted, string delaySamplesCsv, int outputChannels = 8, bool keepDeviceAlive = false)
         {
             VerifyEndpoint(renderEndpointId, false);
             if (outputChannels != 6 && outputChannels != 8) throw new ArgumentException("USB output must contain six or eight channels.");
@@ -118,6 +118,7 @@ namespace Sistema51.Cm6206
                 args.Add("--input-ipc-server=" + ipcPath);
             }
             args.Add("-");
+            if (keepDeviceAlive) args.Insert(args.Count-1, "--audio-stream-silence=yes");
             StringBuilder command = new StringBuilder();
             foreach (string arg in args) { if (command.Length > 0) command.Append(' '); command.Append(Quote(arg)); }
             string commandText = command.ToString();
@@ -263,7 +264,7 @@ namespace Sistema51.Cm6206
 
         public static SpdifContinuousResult RunContinuous(string captureEndpointId, string renderEndpointId, string mpvPath,
             string logFile, string stopFile, string statusFile, string artifactRoot, double gain, bool shared, string configPath, string ipcPath,
-            int maximumSeconds, int startupTimeoutSeconds, bool muted, string delaySamplesCsv, int outputChannels = 8)
+            int maximumSeconds, int startupTimeoutSeconds, bool muted, string delaySamplesCsv, int outputChannels = 8, bool keepDeviceAlive = false)
         {
             SpdifContinuousResult r = new SpdifContinuousResult { CaptureEndpointId = captureEndpointId, RenderEndpointId = renderEndpointId, LinearGain = gain, RequestedOutputChannels = outputChannels };
             Stopwatch total = Stopwatch.StartNew(), running = new Stopwatch();
@@ -283,7 +284,7 @@ namespace Sistema51.Cm6206
                 foreach (string path in new string[] { r.MpvLogFile, r.StopFile, r.StatusFile }) Directory.CreateDirectory(Path.GetDirectoryName(path));
                 if (!File.Exists(mpvPath)) throw new FileNotFoundException("mpv is missing.", mpvPath);
                 if (!string.IsNullOrEmpty(configPath) && !File.Exists(configPath)) throw new FileNotFoundException("DSP configuration is missing.", configPath);
-                r.MpvArguments = BuildContinuousMpvArguments(renderEndpointId, logFile, gain, shared, configPath, ipcPath, muted, delaySamplesCsv, outputChannels);
+                r.MpvArguments = BuildContinuousMpvArguments(renderEndpointId, logFile, gain, shared, configPath, ipcPath, muted, delaySamplesCsv, outputChannels, keepDeviceAlive);
                 SaveContinuousStatus(r, total);
                 enumerator = (IDeviceEnumerator)new DeviceEnumeratorClass();
                 Require(enumerator.GetDevice(captureEndpointId, out input), "Get explicit optical input");

@@ -7,6 +7,8 @@ param(
     [string]$CaptureEndpointId,
     [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')]
     [string]$Name = ('loop-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')),
+    [string]$MpvPath,
+    [string]$SignalPath,
     [switch]$AssertSyntheticCopyright
 )
 # The user must have connected the external optical cable OUT -> IN.
@@ -20,7 +22,7 @@ $artifactPath = Join-Path $workspacePath 'android-a34\artifacts'
 $outputPath = Join-Path $artifactPath ('optical-loopback-' + [DateTime]::UtcNow.ToString('yyyy-MM-dd'))
 $outputPath = Join-Path $outputPath $Name
 if (Test-Path -LiteralPath $outputPath) { throw 'Choose a new name; previous evidence must be preserved.' }
-$signalPath = Join-Path $artifactPath 'optical-2026-10-09\vectors\pcm-tv-speakers-minus24dbfs-5s.wav'
+if(-not $SignalPath){$SignalPath=Join-Path $artifactPath 'optical-2026-10-09\vectors\pcm-tv-speakers-minus24dbfs-5s.wav'}
 if (-not (Test-Path -LiteralPath $signalPath)) { throw 'Known synthetic PCM vector missing.' }
 if ((Get-FileHash -LiteralPath $signalPath -Algorithm SHA256).Hash -ne '2A3085C54FBCF801D8245C65222BC3959B4AA9FD3FDCA737F2B221FF38620B48') {
     throw 'Synthetic PCM identity check failed.'
@@ -68,7 +70,8 @@ try {
     $report.originalRegisters = $guard.Original
     $guard.EnsureExternalPcm48([bool](-not $AssertSyntheticCopyright))
     $report.configuredRegisters = $guard.ReadAll()
-    $mpvPath = Join-Path $workspacePath 'configuracao-pc\mpv-portatil\mpv.com'
+    if(-not $MpvPath){$MpvPath=Join-Path $workspacePath 'configuracao-pc\mpv-portatil\mpv.com'}
+    if(-not(Test-Path -LiteralPath $MpvPath -PathType Leaf)){throw 'Existing local mpv is required.'}
     $guid = $RenderEndpointId.Substring('{0.0.0.00000000}.'.Length)
     $arguments = @('--no-config', '--no-video', '--ao=wasapi', '--audio-exclusive=yes',
         ('--audio-device=wasapi/' + $guid), '--audio-channels=stereo', '--audio-samplerate=48000',

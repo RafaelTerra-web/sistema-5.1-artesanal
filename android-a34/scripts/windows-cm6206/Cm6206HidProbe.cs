@@ -23,7 +23,7 @@ namespace Sistema51.Hardware {
         [DllImport("hid.dll")] private static extern bool HidD_GetPreparsedData(SafeFileHandle handle,out IntPtr data);
         [DllImport("hid.dll")] private static extern bool HidD_FreePreparsedData(IntPtr data);
         [DllImport("hid.dll")] private static extern int HidP_GetCaps(IntPtr data,out Caps caps);
-        [DllImport("hid.dll")] private static extern bool HidD_FlushQueue(SafeFileHandle handle);
+        [DllImport("hid.dll",SetLastError=true)] private static extern bool HidD_FlushQueue(SafeFileHandle handle);
         [DllImport("kernel32.dll")] private static extern bool CancelIoEx(SafeFileHandle handle,IntPtr overlapped);
         private static List<string> Paths() {
             Guid guid;HidD_GetHidGuid(out guid);IntPtr info=SetupDiGetClassDevs(ref guid,null,IntPtr.Zero,18);var paths=new List<string>();
@@ -34,7 +34,7 @@ namespace Sistema51.Hardware {
                 uint required;SetupDiGetDeviceInterfaceDetail(info,ref data,IntPtr.Zero,0,out required,IntPtr.Zero);
                 IntPtr detail=Marshal.AllocHGlobal((int)required);
                 try { Marshal.WriteInt32(detail,IntPtr.Size==8?8:6);if(!SetupDiGetDeviceInterfaceDetail(info,ref data,detail,required,out required,IntPtr.Zero))continue;
-                    string path=Marshal.PtrToStringUni(IntPtr.Add(detail,4));if(path!=null&&path.ToLowerInvariant().Contains("vid_0d8c&pid_0102"))paths.Add(path);
+                    string path=Marshal.PtrToStringUni(IntPtr.Add(detail,4));if(path!=null&&path.ToLowerInvariant().Contains("vid_0d8c&pid_0102")&&path.ToLowerInvariant().Contains("&mi_03"))paths.Add(path);
                 } finally {Marshal.FreeHGlobal(detail);}
             }} finally {SetupDiDestroyDeviceInfoList(info);}return paths;
         }
@@ -48,11 +48,14 @@ namespace Sistema51.Hardware {
                     try {int status=HidP_GetCaps(data,out caps);if(status!=0x00110000)throw new IOException("HidP_GetCaps: "+status.ToString("X8"));}
                     finally {HidD_FreePreparsedData(data);}
                     item.inputReportBytes=caps.InputReportByteLength;item.outputReportBytes=caps.OutputReportByteLength;
-                    if(caps.OutputReportByteLength<5||caps.InputReportByteLength<3)throw new IOException("Report length incompatible with known CM6206 protocol");
-                    using(FileStream stream=new FileStream(handle,FileAccess.ReadWrite,512,true)) {
+                    if(caps.OutputReportByteLength!=5||caps.InputReportByteLength!=4)throw new IOException("Expected exact CM6206 HID report lengths 5/4");
+                    // HID is message-oriented: buffering a five-byte command can
+                    // combine reports or consume stale replies across requests.
+                    // Size 1 makes each report bypass FileStream's byte buffer.
+                    using(FileStream stream=new FileStream(handle,FileAccess.ReadWrite,1,true)) {
                         for(int register=0;register<6;register++) {
                             var result=new HidRegister();result.register=register;item.registers.Add(result);
-                            try {HidD_FlushQueue(handle);byte[] command=new byte[caps.OutputReportByteLength];command[1]=0x30;command[4]=(byte)register;
+                            try {if(!HidD_FlushQueue(handle))throw new IOException("HidD_FlushQueue: "+Marshal.GetLastWin32Error());byte[] command=new byte[caps.OutputReportByteLength];command[1]=0x30;command[4]=(byte)register;
                                 var write=stream.WriteAsync(command,0,command.Length);if(!write.Wait(1000)){CancelIoEx(handle,IntPtr.Zero);throw new IOException("Read-register request timeout");}
                                 byte[] reply=new byte[caps.InputReportByteLength];var read=stream.ReadAsync(reply,0,reply.Length);if(!read.Wait(1000)){CancelIoEx(handle,IntPtr.Zero);throw new IOException("Register response timeout");}
                                 int count=read.Result;result.replyHex=BitConverter.ToString(reply,0,count);

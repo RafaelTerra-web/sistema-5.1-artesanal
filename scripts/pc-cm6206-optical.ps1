@@ -8,6 +8,7 @@ param(
     [Parameter(Mandatory=$true)][string]$MpvPath,
     [ValidateRange(0,1)][double]$Gain=0.1,
     [ValidateSet(6,8)][int]$OutputChannels=6,
+    [switch]$KeepDeviceAlive,
     [switch]$Shared,
     [switch]$Muted,
     [ValidatePattern('^[0-9]+(,[0-9]+){5}$')][string]$DelaySamplesCsv='3686,3686,278,278,3408,3408',
@@ -42,7 +43,7 @@ Add-Type -Path @(
     (Join-Path $PSScriptRoot 'optical-tests/WindowsSpdifRelay.cs'),
     (Join-Path $PSScriptRoot 'optical-tests/WindowsSpdifContinuousRelay.cs')
 )
-$arguments=[Sistema51.Cm6206.WindowsSpdifRelay]::BuildContinuousMpvArguments($RenderEndpointId,$LogPath,$Gain,[bool]$Shared,$ConfigPath,$IpcPath,[bool]$Muted,$DelaySamplesCsv,$OutputChannels)
+$arguments=[Sistema51.Cm6206.WindowsSpdifRelay]::BuildContinuousMpvArguments($RenderEndpointId,$LogPath,$Gain,[bool]$Shared,$ConfigPath,$IpcPath,[bool]$Muted,$DelaySamplesCsv,$OutputChannels,[bool]$KeepDeviceAlive)
 if($ValidateOnly){
     [pscustomobject]@{PlaybackStarted=$false;Stop=$StopPath;Log=$LogPath;Status=$StatusPath;Arguments=$arguments}
     return
@@ -57,7 +58,7 @@ try {
     Write-Output ('AC-3 óptico nativo6 -> USB'+$OutputChannels+'; stop: '+$StopPath)
     $result=[Sistema51.Cm6206.WindowsSpdifRelay]::RunContinuous(
         $CaptureEndpointId,$RenderEndpointId,$MpvPath,$LogPath,$StopPath,$StatusPath,$artifactRoot,
-        $Gain,[bool]$Shared,$ConfigPath,$IpcPath,$MaximumSeconds,$StartupTimeoutSeconds,[bool]$Muted,$DelaySamplesCsv,$OutputChannels)
+        $Gain,[bool]$Shared,$ConfigPath,$IpcPath,$MaximumSeconds,$StartupTimeoutSeconds,[bool]$Muted,$DelaySamplesCsv,$OutputChannels,[bool]$KeepDeviceAlive)
     $result|ConvertTo-Json -Depth 6
     if($result.Error -or -not $result.CleanupComplete){exit 1}
 } finally {
