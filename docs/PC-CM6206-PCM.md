@@ -16,7 +16,7 @@ O [script](../scripts/pc-cm6206-pcm.ps1) exige IDs locais completos, mpv e Sound
 
 LR4 a 90 Hz nas cinco caixas; soma dos graves ao LFE original; margem LFE 1/6; subsônico Butterworth 20 Hz; ganho mestre 0,5; trim central inicial −12 dB. São ajustes conservadores de bancada, não calibração final. Não inclui os atrasos da cadeia HDMI antiga, que precisam de nova medição.
 
-`-SwapCenterLfe` coloca FC no slot físico 3/R e LFE no 2/L, conforme a ligação relatada pelo usuário. Volumes por canal do Windows precisam acompanhar essa troca. Surrounds são duplicadas em BL/BR e SL/SR provisoriamente; identificar o par do conector REAR antes do mapa definitivo. O A34 usa seis canais e não replica automaticamente esses oito slots.
+`-SwapCenterLfe` coloca FC no slot físico 3/R e LFE no 2/L, somente se o teste físico confirmar esse mapa. O teste atual colocou a fala central no sub, portanto essa inversão ainda não está validada nesta montagem. Volumes por canal do Windows precisam acompanhar essa troca. Surrounds são duplicadas em BL/BR e SL/SR provisoriamente; identificar o par do conector REAR antes do mapa definitivo. O A34 usa seis canais e não replica automaticamente esses oito slots.
 
 ## Execução, parada e teste em arquivos
 
@@ -25,7 +25,7 @@ Pare o gerenciador Dolby antes. Variáveis abaixo representam caminhos/IDs locai
 ```powershell
 .\scripts\pc-cm6206-pcm.ps1 -MpvPath $mpvLocal -SoundVolumeViewPath $volumeToolLocal `
   -CaptureEndpointId $vbCableRenderId -RenderEndpointId $cm6206RenderId `
-  -InputMode Native -SwapCenterLfe -Shared
+  -InputMode Native -Shared
 ```
 
 `-ValidateOnly` faz preflight e gera o grafo sem roteamento/reprodução. `-Shared` abre compartilhado; sem ele, exclusivo. O script muda padrões console/multimídia e preferência do player para VB-CABLE. Na parada, restaura os padrões anteriores se ainda forem seus e direciona o player ao antigo padrão multimídia. Não recupera uma preferência por aplicativo anterior diferente do padrão; conferir manualmente se houver personalização.
@@ -53,3 +53,5 @@ Nova porta USB, óptica retirada: leitura dos seis registradores voltou a funcio
 Recuperação sem ajuste dos volumes do driver: leitura HID dos seis registradores passou; REG2 0x6004 foi journalado e somente DRIVERON foi mantido em 0xE004 pelo wrapper privado, com restauração verificada a 0x6004 na parada. Saída exclusiva abriu como WASAPI 48 kHz/7.1/oito canais. Após atualizar o vídeo, a captura apresentou sinal em FL/FR/FC/LFE/SL/SR, com autoFrames=0 e modo Native. Isso confirma sinal na captura, não o mapa físico nem independência dos canais originais. Óptica permaneceu retirada: teste PC→USB, sem aprovação adicional do passthrough.
 
 Ganho DSP 2% foi baixo; aumentado para 10% por pedido do usuário. Ele relatou som somente nas frontais, sem central, surrounds ou sub. Sessões curtas começaram sem quedas, mas depois registraram 7.200 frames descartados (~150 ms), escrita máxima ~200 ms e uma descontinuidade inicial: estabilidade prolongada não aprovada. Preparado teste falado direto de oito slots, central no R/slot 3, LFE no L/slot 2 e comparação separada BL/BR versus SL/SR. Sem crossover, EQ ou upmix nesse teste. Picos: frontais/traseiras 0,10, central 0,05, tom LFE 60 Hz/0,5 s a 0,003 com rampas. Anúncio do sub nas frontais. Preparação somente, aguardando autorização de reprodução; arquivos/identificadores ficam privados.
+
+Teste falado direto executou em WASAPI 48 kHz/7.1/oito canais, sem crossover/EQ/upmix. O usuário relatou que a fala Central, enviada ao slot USB 3 (índice zero), saiu no subwoofer. Portanto a informação de ligação da central no R não autoriza presumir a inversão FC/LFE: o mapa precisa de confirmação empírica. Não manter a troca apenas por essa descrição. Preparado teste isolado de duas falas nos slots 2 e 3, pico igual 0,05, demais slots zerados e sem tom grave; aguardando reprodução. A saída analógica foi restaurada a REG2 0x6004 com leitura verificada depois do teste. Uma leitura HID falhou na transição, mas a repetição somente de leitura recuperou os seis registradores, sem nova reconexão física; falhas anteriores não estabelecem causalidade exclusiva do volume Windows.

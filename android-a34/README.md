@@ -1,6 +1,6 @@
 # Sistema 5.1 — aplicativo do A34
 
-Versão atual **0.5.0**: crossover LR4 opcional de FL/FR/FC, filtro subsônico LFE e troca FC/LFE apenas na saída USB para a central conectada no R. O laboratório decide pelo número real de canais decodificados: 1/2 usam upmix; 6 permanecem nativos, inclusive quando o perfil selecionado era estéreo. O serviço USB PCM ainda exige modo e formato explicitamente compatíveis; a captura óptica comprimida continua pendente. Novos controles ficam desligados na migração para conservar perfis existentes.
+Versão atual **0.5.0**: crossover LR4 opcional de FL/FR/FC, filtro subsônico LFE e troca FC/LFE apenas na saída USB conforme o mapa físico confirmado em teste. O laboratório decide pelo número real de canais decodificados: 1/2 usam upmix; 6 permanecem nativos, inclusive quando o perfil selecionado era estéreo. O serviço USB PCM ainda exige modo e formato explicitamente compatíveis; a captura óptica comprimida continua pendente. Novos controles ficam desligados na migração para conservar perfis existentes.
 
 Versão **0.5.0**, atualizada em **09/10/2026**. Aplicativo Android real com painel, edição do perfil, DSP, bancada de arquivos e diagnóstico USB. O histórico de validação no Galaxy A34 `SM-A346M`, Android 14, está nos relatórios abaixo. A CM6206 real foi reconhecida pelo telefone em testes anteriores usando um adaptador USB-A fêmea/USB-C macho OTG, sem hub alimentado.
 
