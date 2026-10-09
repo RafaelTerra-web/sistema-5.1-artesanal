@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation android:name="br.com.sistema51.a34.AppTestInstrumentation"
+        android:targetPackage="br.com.sistema51.a34" android:label="Testes internos do A34" />
+</manifest>

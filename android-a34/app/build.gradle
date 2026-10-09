@@ -1,0 +1,27 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'br.com.sistema51.a34'
+    compileSdk 36
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'br.com.sistema51.a34'
+        minSdk 28
+        targetSdk 36
+        versionCode 4
+        versionName '0.4.0'
+    }
+    buildTypes {
+        debug { debuggable true }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies { testImplementation 'junit:junit:4.13.2' }

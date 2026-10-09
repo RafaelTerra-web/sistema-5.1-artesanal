@@ -17,15 +17,37 @@ function Invoke-SoundTool([string[]]$Arguments) {
 }
 
 function Get-SonyEndpoint {
-    $root = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render'
+    $script:sonyReadError = $null
+    $root = $null
     $sonyCandidates = @()
-    foreach ($key in Get-ChildItem -LiteralPath $root) {
-        if ($key.GetValue('DeviceState') -ne 1) { continue }
-        $properties = Get-Item -LiteralPath (Join-Path $key.PSPath 'Properties') -ErrorAction SilentlyContinue
-        if ($properties -and $properties.GetValue('{a45c254e-df1c-4efd-8020-67d146a850e0},2') -match 'SONY' -and
-            $properties.GetValue('{b3f8fa53-0004-438e-9003-51a46e139bfc},6') -match 'NVIDIA') {
-            $sonyCandidates += '{0.0.0.00000000}.' + $key.PSChildName
+    try {
+        # Read only the named values. The PowerShell Registry provider also
+        # enumerates every value while formatting Get-Item, which can fail when
+        # Windows replaces an endpoint during USB/HDMI format changes.
+        $root = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
+            'SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render', $false)
+        if (-not $root) { return $null }
+        foreach ($name in $root.GetSubKeyNames()) {
+            $key = $null; $properties = $null
+            try {
+                $key = $root.OpenSubKey($name, $false)
+                if (-not $key -or $key.GetValue('DeviceState') -ne 1) { continue }
+                $properties = $key.OpenSubKey('Properties', $false)
+                if ($properties -and $properties.GetValue('{a45c254e-df1c-4efd-8020-67d146a850e0},2') -match 'SONY' -and
+                    $properties.GetValue('{b3f8fa53-0004-438e-9003-51a46e139bfc},6') -match 'NVIDIA') {
+                    $sonyCandidates += '{0.0.0.00000000}.' + $name
+                }
+            } catch {
+                $script:sonyReadError = 'Dispositivo de audio mudou durante a consulta; tentando novamente.'
+            } finally {
+                if ($properties) { $properties.Dispose() }
+                if ($key) { $key.Dispose() }
+            }
         }
+    } catch {
+        $script:sonyReadError = 'Nao foi possivel consultar a saida HDMI; tentando novamente.'
+    } finally {
+        if ($root) { $root.Dispose() }
     }
     if ($sonyCandidates.Count -eq 1) { return $sonyCandidates[0] }
     return $null
@@ -41,7 +63,7 @@ function Get-AudioStatus {
     $requested = -not (Test-Path -LiteralPath $script:disabledFile)
     $players = @(Get-AudioPlayerProcesses $runner $script:baseDir)
     $outputAlive = $players.Count -gt 0
-    $updated = $null; $lastError = $null
+    $updated = $null; $lastError = $script:sonyReadError
     $statePath = Join-Path $script:baseDir 'audio-sistema-estado.json'
     if ([IO.File]::Exists($statePath)) {
         try {
@@ -236,6 +258,7 @@ $form.Controls.AddRange(@($title,$stateLabel,$details,$on,$off,$eq,$tip))
 $script:actionProcess = $null
 $script:controlPath = $PSCommandPath
 $refresh = {
+    try {
     if ($script:actionProcess -and -not $script:actionProcess.HasExited) {
         $stateLabel.Text = 'Trocando a rota de audio...'
         $stateLabel.ForeColor = [Drawing.Color]::DarkOrange
@@ -248,6 +271,13 @@ $refresh = {
     $stateLabel.ForeColor = if($status.Ligado){[Drawing.Color]::ForestGreen}else{[Drawing.Color]::DimGray}
     $tip.Text = if ($status.UltimoErro) { 'Ultimo erro: ' + $status.UltimoErro } else { 'Se o navegador nao acompanhar a troca, atualize o video (F5).' }
     $tip.ForeColor = if ($status.UltimoErro) { [Drawing.Color]::Firebrick } else { [Drawing.Color]::DimGray }
+    } catch {
+        # A timer exception must not escape into WinForms/JIT or stop refreshes.
+        $stateLabel.Text = 'Atualizando dispositivos de audio...'
+        $stateLabel.ForeColor = [Drawing.Color]::DarkOrange
+        $tip.Text = 'Consulta temporariamente indisponivel; nova tentativa automatica.'
+        $tip.ForeColor = [Drawing.Color]::DimGray
+    }
 }
 $runAction = {
     param($action)

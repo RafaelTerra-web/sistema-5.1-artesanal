@@ -1,0 +1,23 @@
+name: Aplicativo A34
+on:
+  push:
+    paths: ['android-a34/**', '.github/workflows/android-a34.yml']
+  pull_request:
+    paths: ['android-a34/**', '.github/workflows/android-a34.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Preparar SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+      - name: Compilar e verificar
+        working-directory: android-a34
+        run: sh gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --console=plain

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background">#071B20</color>
+    <color name="surface">#102B32</color>
+    <color name="surface_raised">#183740</color>
+    <color name="teal">#64DDD0</color>
+    <color name="amber">#FFC57A</color>
+    <color name="text_primary">#F2F7F6</color>
+    <color name="text_secondary">#A5BEC3</color>
+</resources>

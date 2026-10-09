@@ -4,6 +4,12 @@ Plano aprovado em 05/10/2026. A arquitetura e as condições físicas estão em 
 
 ## Desenvolvimento no PC e execução no telefone
 
+### Situação em 09/10/2026
+
+O plano passou a ter implementação Java Android em `android-a34/`, incluindo motor DSP, painel, perfis, arquivos AC-3/WAV, serviço PCM USB e diagnósticos. Kotlin/C++/FFmpeg abaixo eram escolhas propostas, não exigências de linguagem; o transporte AC-3 ao vivo continua sem backend. A versão 0.4.0 acrescenta upmix ajustável e preserva o 5.1 nativo. O [relatório consolidado](PROGRESSO-A34-E-UPMIX-2026-10-09.md) separa testes no PC, testes no aparelho e escuta física, além de priorizar o trabalho restante.
+
+Na bancada Windows, foram recebidos seis canais AC-3 pela Sony e confirmadas as seis caixas em saída USB direta. A habilitação de REG2.DRIVERON foi necessária para abrir as saídas analógicas. Isso substitui a condição antiga de “aguardar a interface”, mas não aprova a mesma inicialização no Android, o mapeamento definitivo nem a captura óptica no telefone.
+
 Preparar Android Studio ou ferramentas equivalentes, SDK, NDK e ADB. A instalação e depuração podem começar por cabo USB de dados ou pelo pareamento ADB sem fio disponível no Android 11 ou superior; o pareamento sem fio não exige cabo USB. O PC compila, instala o APK e lê logs; o código de processamento roda no próprio A34. Consulte o [estudo de manutenção sem desmontar a montagem](A34-MANUTENCAO-SEM-FIO.md) para atualizar pela rede com a interface conectada.
 
 Antes da interface, testar decodificação e DSP com arquivos AC-3/WAV 5.1 conhecidos. Exportar os seis canais processados e comparar com referências do programa Windows. O alto-falante do telefone, que não representa seis saídas independentes, não é um teste de reprodução 5.1.

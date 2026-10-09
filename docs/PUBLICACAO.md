@@ -4,6 +4,8 @@ O repositório recebe a implementação desenvolvida e a documentação para reu
 
 ## Incluído
 
+- Implementação Android em `android-a34/`, Gradle Wrapper, documentação e ferramentas de diagnóstico óptico. A fixture AC-3 debug contém somente tons sintéticos próprios do projeto. Capturas e relatórios em `android-a34/artifacts/`, APKs, caches e assinaturas ficam ignorados pelo Git.
+
 - Fontes C#, PowerShell, Python, JavaScript, HTML e CSS do projeto.
 - Iniciadores `.cmd`, configurações de referência e arquivos APO desenvolvidos.
 - Controle remoto completo, seus adaptadores, site e fontes das extensões.
@@ -54,3 +56,7 @@ Incluídas conclusões da discussão sobre Sony/DTS, controle de volume pelo Fir
 ## Estudo de manutenção sem fio — 06/10/2026
 
 Incluído estudo de viabilidade para atualizar e diagnosticar o aplicativo do A34 por ADB sem fio com a interface conectada, distinguir código e parâmetros, preservar perfis e testar retomada do áudio. Compras da CM6206 e do hub PD foram registradas como informações do usuário, sem presumir teste concluído. Publicados apenas documentação e links, sem chaves de assinatura, códigos de pareamento, endereços privados ou credenciais.
+
+## Implementação, comunicação e upmix — 09/10/2026
+
+Incluídos fontes Android 0.4.0, testes, perfis, diagnósticos, ferramentas ópticas Windows, correção do painel e relatórios de toda a bancada. O Gradle Wrapper oficial e uma fixture AC-3 de tons sintéticos são os dois binários de suporte permitidos; não são capturas de conteúdo comercial. O verificador de publicação passa a rejeitar também builds/caches/artifacts Android, PCM bruto, APK/AAB/DEX, assinaturas e configuração local. O APK foi instalado/testado no A34 por ADB, mas continua somente local. O plano registra captura óptica e controle analógico Android como pendentes, distinguindo processamento offline, negociação de canais e som efetivamente ouvido.
