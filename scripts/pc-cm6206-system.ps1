@@ -15,7 +15,7 @@ if(-not $ConfigPath){$ConfigPath=Join-Path $root 'configuracao-pc/cm6206-local.j
 $statePath=Join-Path $root 'configuracao-pc/cm6206-state.json'
 function Read-State {
     $defaults=[ordered]@{Estado='Desligado';Ligado=$false;Solicitado=$false;Modo='Pcm';InputMode='Auto';Gain=0.1;Muted=$false;RunnerId=0;RunnerStartedUtc='';StopPath='';UltimoErro='';AtualizadoEm=[DateTimeOffset]::UtcNow.ToString('o')}
-    try {$state=Get-Content -LiteralPath $statePath -Raw|ConvertFrom-Json} catch {$state=$null}
+    try {$state=[IO.File]::ReadAllText($statePath)|ConvertFrom-Json} catch {$state=$null}
     if(-not $state){return [pscustomobject]$defaults}
     foreach($key in $defaults.Keys){if(-not $state.PSObject.Properties[$key]){$state|Add-Member -NotePropertyName $key -NotePropertyValue $defaults[$key]}}
     return $state
@@ -61,7 +61,7 @@ try {
         Stop-Session $state;Emit-State (Read-State);return
     }
     if(-not(Test-Path -LiteralPath $ConfigPath)){throw 'Configure cm6206-local.json com os caminhos e endpoints desta máquina.'}
-    $cfg=Get-Content -LiteralPath $ConfigPath -Raw|ConvertFrom-Json
+    $cfg=[IO.File]::ReadAllText($ConfigPath)|ConvertFrom-Json
     if($PSBoundParameters.ContainsKey('Gain')){$cfg.Gain=$Gain}
     if($PSBoundParameters.ContainsKey('Muted')){$cfg.Muted=$Muted}
     if($Action -eq 'Configure') {

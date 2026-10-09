@@ -128,3 +128,7 @@ Ensaiar hub PD, carga real, tela apagada, temperatura, várias horas, reconexão
 Perfil versionado com mapa e atrasos; APK assinado; dependências/licenças; guia de cabos/configurações; relatório de formatos/CRC/relógios; resultados em arquivos e escuta; recuperação de falhas; ensaio prolongado com hub; plano de manutenção e backup. Não publicar seriais ADB, credenciais, logs de conta ou capturas de mídia de terceiros.
 
 Referências: [manual Sony usado na investigação](https://www.sony.com/electronics/support/res/manuals/W000/W0006624M.pdf), [CM6206](https://tehnoblog.org/downloads/cmedia/C-Media_CM-6206.pdf), [USB Android](https://developer.android.com/reference/android/hardware/usb/UsbDeviceConnection), [AudioFormat](https://developer.android.com/reference/android/media/AudioFormat), [WASAPI Initialize](https://learn.microsoft.com/pt-br/windows/win32/api/audioclient/nf-audioclient-iaudioclient-initialize), [relatório consolidado](PROGRESSO-A34-E-UPMIX-2026-10-09.md), [bancada PCM](PC-CM6206-PCM.md) e [receptor óptico](PC-CM6206-OPTICAL.md).
+
+## Publicação e CI
+
+Código e relatório publicados no GitHub. [CI Android](https://github.com/RafaelTerra-web/sistema-5.1-artesanal/actions/runs/37989271388) e [testes isolados](https://github.com/RafaelTerra-web/sistema-5.1-artesanal/actions/runs/37989271562) passaram. O ensaio adicional em arquivo da saída óptica de seis canais comparou 436.838 frames completos com a referência, erro máximo zero. Esses resultados não substituem a sessão física contínua, ainda bloqueada.

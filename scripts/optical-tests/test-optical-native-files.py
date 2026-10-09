@@ -7,6 +7,7 @@ both provisional rear pairs. This is not an acoustic or TV passthrough test.
 import argparse
 import importlib.util
 import json
+import re
 from pathlib import Path
 import struct
 import subprocess
@@ -76,6 +77,14 @@ delays = [3686, 3686, 278, 278, 3408, 3408]
 expected_delayed = np.zeros((len(native) + max(delays), 6), dtype='<f4')
 for ch, delay in enumerate(delays):
     expected_delayed[delay:delay+len(native), ch] = native[:, ch]
+six_script='Add-Type -Path @('+quoted+');[Sistema51.Cm6206.WindowsSpdifRelay]::BuildContinuousMpvArguments("{0.0.0.00000000}.{f6b92e59-dea6-4e22-a20e-6f5ccd9023f6}","file-test.log",1,$false,$null,$null,$false,"3686,3686,278,278,3408,3408",6)'
+six_args=subprocess.run(['powershell.exe','-NoProfile','-Command',six_script],capture_output=True,check=True,timeout=30,
+                        creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0)).stdout.decode().strip()
+six_filter=re.search(r'--af=lavfi=\[([^"\r\n]+)\]',six_args).group(1)
+six_output=render('carrier-duplex-six',carrier,'5.1(side)',1,True,six_filter)
+assert six_output.shape==expected_delayed.shape
+six_error=float(np.abs(six_output-expected_delayed).max())
+assert six_error<1e-6, six_error
 checks = []
 for gain in (1, .1, 0):
     mapped = render('carrier-gain-' + str(gain), carrier, '7.1', gain, True, graph)
@@ -117,6 +126,7 @@ assert observed_positions == expected_positions
 assert np.count_nonzero(delayed_impulses) == 8
 assert delayed_impulses[positions[3]+278, 3] == .25, 'LFE must have the new 278-sample delay.'
 report = {'ok': True, 'fileOutputOnly': True, 'syntheticCarrierBurstCount': len(bursts),
+          'duplexSixChannelFrames':len(six_output),'duplexSixChannelMaximumError':six_error,
           'channels': 'FL FR FC LFE SL SR SL SR', 'delaySamplesLogical6': delays,
           'impulsePositionsUsb8': observed_positions, 'checks': checks,
           'scope': 'Native AC-3 decode, linear gain, exact delays and physical slot mapping in files; no TV, USB or DAC validation.'}
