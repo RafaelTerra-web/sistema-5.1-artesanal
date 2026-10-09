@@ -24,7 +24,7 @@ public final class DspEngineTest {
     private static void defaultsAndValidation() {
         AudioProfile p = AudioProfile.defaultProfile();
         close("default master", 0.04, p.getMasterGain(), 1e-8);
-        int[] expected = {3686, 3686, 278, 0, 3408, 3408};
+        int[] expected = {3686, 3686, 278, 278, 3408, 3408};
         for (int c = 0; c < 6; c++) {
             eq("default delay " + c, expected[c], p.getDelaySamples(c));
             close("default trim " + c, 1, p.getChannelTrim(c), 0);
@@ -63,11 +63,11 @@ public final class DspEngineTest {
 
     private static void exactDelaysAndRingWrap() {
         AudioProfile p = flat().toBuilder().delaySamples(0, 3686).delaySamples(1, 3686)
-                .delaySamples(2, 278).delaySamples(4, 3408).delaySamples(5, 3408).build();
+                .delaySamples(2, 278).delaySamples(3, 278).delaySamples(4, 3408).delaySamples(5, 3408).build();
         float[] input = new float[4096 * 6];
         for (int c = 0; c < 6; c++) input[c] = (c + 1) / 16f;
         float[] out = render(input, 6, p, 37);
-        int[] expected = {3686, 3686, 278, 0, 3408, 3408};
+        int[] expected = {3686, 3686, 278, 278, 3408, 3408};
         for (int f = 0; f < 4096; f++) for (int c = 0; c < 6; c++) {
             close("impulse delay independently expected", f == expected[c] ? (c + 1) / 16f : 0,
                     out[f * 6 + c], 0);

@@ -1,296 +1,227 @@
-param([ValidateSet('Painel','Ligar','Desligar','Status','UpmixAuto','Nativo','Biblioteca')][string]$Acao = 'Painel')
-$ErrorActionPreference = 'Stop'
+param(
+    [ValidateSet('Painel','Ligar','Desligar','Status','UpmixAuto','Stereo','Nativo','Biblioteca')][string]$Acao='Painel',
+    [ValidateSet('Pcm','Optical','Auto')][string]$Mode='Pcm',
+    [ValidateSet('Auto','Stereo','Native')][string]$InputMode='Auto'
+)
+$ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Audio gerenciamento comum.ps1')
-$script:baseDir = $PSScriptRoot
-$script:runnerPath = Join-Path $PSScriptRoot 'rodar-audio-sistema.ps1'
-$script:soundTool = Join-Path $PSScriptRoot 'ferramentas\soundvolumeview\SoundVolumeView.exe'
-$script:cableId = '{0.0.0.00000000}.{1480f3d6-872e-45ff-a839-c8b330d0127e}'
-$script:stopFile = Join-Path $PSScriptRoot 'audio-sistema.stop'
-$script:disabledFile = Join-Path $PSScriptRoot 'audio-sistema.desligado'
-$script:pidFile = Join-Path $PSScriptRoot 'audio-sistema.pid'
-$script:normalFormat = Join-Path $PSScriptRoot 'formato-sony-com-sistema.dat'
-$script:normalState = Join-Path $PSScriptRoot 'controle-audio-estado.json'
-$script:actionErrorPath = Join-Path $PSScriptRoot 'controle-audio-erro.json'
+$script:baseDir=$PSScriptRoot
+$script:systemPath=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\scripts\pc-cm6206-system.ps1'))
+$script:systemStatePath=Join-Path $PSScriptRoot 'cm6206-state.json'
+$script:preferencePath=Join-Path $PSScriptRoot 'cm6206-panel.json'
+$script:actionErrorPath=Join-Path $PSScriptRoot 'controle-audio-erro.json'
 
-function Invoke-SoundTool([string[]]$Arguments) {
-    Invoke-AudioSoundTool $script:baseDir $Arguments
-}
-
-function Get-SonyEndpoint {
-    $script:sonyReadError = $null
-    $root = $null
-    $sonyCandidates = @()
-    try {
-        # Read only the named values. The PowerShell Registry provider also
-        # enumerates every value while formatting Get-Item, which can fail when
-        # Windows replaces an endpoint during USB/HDMI format changes.
-        $root = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey(
-            'SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render', $false)
-        if (-not $root) { return $null }
-        foreach ($name in $root.GetSubKeyNames()) {
-            $key = $null; $properties = $null
-            try {
-                $key = $root.OpenSubKey($name, $false)
-                if (-not $key -or $key.GetValue('DeviceState') -ne 1) { continue }
-                $properties = $key.OpenSubKey('Properties', $false)
-                if ($properties -and $properties.GetValue('{a45c254e-df1c-4efd-8020-67d146a850e0},2') -match 'SONY' -and
-                    $properties.GetValue('{b3f8fa53-0004-438e-9003-51a46e139bfc},6') -match 'NVIDIA') {
-                    $sonyCandidates += '{0.0.0.00000000}.' + $name
-                }
-            } catch {
-                $script:sonyReadError = 'Dispositivo de audio mudou durante a consulta; tentando novamente.'
-            } finally {
-                if ($properties) { $properties.Dispose() }
-                if ($key) { $key.Dispose() }
-            }
-        }
-    } catch {
-        $script:sonyReadError = 'Nao foi possivel consultar a saida HDMI; tentando novamente.'
-    } finally {
-        if ($root) { $root.Dispose() }
+function Get-AudioPreferences {
+    $preferences=[pscustomobject]@{Mode='Pcm';InputMode='Auto'}
+    if ([IO.File]::Exists($script:preferencePath)) {
+        try {
+            $saved=[IO.File]::ReadAllText($script:preferencePath)|ConvertFrom-Json
+            if ($saved.Mode -in @('Pcm','Optical','Auto')) {$preferences.Mode=$saved.Mode}
+            if ($saved.InputMode -in @('Auto','Stereo','Native')) {$preferences.InputMode=$saved.InputMode}
+        } catch { }
     }
-    if ($sonyCandidates.Count -eq 1) { return $sonyCandidates[0] }
-    return $null
+    return $preferences
 }
 
-function Get-OurRunner {
-    return Get-AudioRunnerProcess $script:baseDir
+function Save-AudioPreferences([string]$SelectedMode,[string]$SelectedInputMode) {
+    $preferences=[ordered]@{Mode=$SelectedMode;InputMode=$SelectedInputMode}
+    Set-AudioFileTransaction @((New-AudioTextFile $script:preferencePath ($preferences|ConvertTo-Json -Compress)))
+}
+
+function Invoke-AudioSystem([string]$Action,[string]$SelectedMode,[string]$SelectedInputMode) {
+    if (-not [IO.File]::Exists($script:systemPath)) {throw 'Gerenciador CM6206 ausente: scripts/pc-cm6206-system.ps1.'}
+    # The manager owns routing, readiness and restoration. The panel never
+    # changes endpoint formats, volumes, HID or defaults itself.
+    $start=[Diagnostics.ProcessStartInfo]::new()
+    $start.FileName='powershell.exe';$start.UseShellExecute=$false;$start.CreateNoWindow=$true
+    $start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
+    $start.Arguments='-NoLogo -NoProfile -ExecutionPolicy Bypass -File "'+$script:systemPath+'" -Action '+$Action+' -Mode '+$SelectedMode+' -InputMode '+$SelectedInputMode
+    $process=[Diagnostics.Process]::new();$process.StartInfo=$start
+    try {
+        if (-not $process.Start()) {throw 'Nao foi possivel iniciar o gerenciador CM6206.'}
+        $output=$process.StandardOutput.ReadToEndAsync();$errors=$process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(40000)) {
+            try {$process.Kill()} catch { }
+            throw 'O gerenciador demorou a responder. Consulte o estado antes de repetir.'
+        }
+        if ($process.ExitCode -ne 0) {throw ('Falha na rota de audio: '+$errors.Result.Trim())}
+        $result=$output.Result.Trim()
+        if (-not $result) {throw 'O gerenciador nao retornou o estado de audio.'}
+        return ($result|ConvertFrom-Json)
+    } finally {$process.Dispose()}
 }
 
 function Get-AudioStatus {
-    $runner = Get-OurRunner
-    $sony = Get-SonyEndpoint
-    $requested = -not (Test-Path -LiteralPath $script:disabledFile)
-    $players = @(Get-AudioPlayerProcesses $runner $script:baseDir)
-    $outputAlive = $players.Count -gt 0
-    $updated = $null; $lastError = $script:sonyReadError
-    $statePath = Join-Path $script:baseDir 'audio-sistema-estado.json'
-    if ([IO.File]::Exists($statePath)) {
-        try {
-            $runnerState = [IO.File]::ReadAllText($statePath) | ConvertFrom-Json
-            if (-not $runner -or ($runnerState.RunnerId -eq $runner.ProcessId -and
-                $runnerState.InicioProcessoUtc -eq $runner.CreationDate.ToUniversalTime().ToString('o'))) {
-                $updated = $runnerState.AtualizadoEm; $lastError = $runnerState.UltimoErro
-            }
-        } catch { $lastError = 'Nao foi possivel ler o diagnostico do audio.' }
+    $preferences=Get-AudioPreferences
+    $status=[pscustomobject]@{
+        Estado='Desligado - clique em Ligar';Ligado=$false;Solicitado=$false
+        Modo=$preferences.Mode;InputMode=$preferences.InputMode;RunnerId=$null;PlayerId=$null
+        UltimoErro=$null;AtualizadoEm=$null;Perfil='PCM USB';AtrasosMs=$null;Gain=$null;Muted=$null
+        UpmixAutomatico=($preferences.InputMode -eq 'Auto')
     }
-    $profile = 'Personalizado'
-    $delayMs = @($null,$null,$null,$null,$null,$null)
-    try {
-        $activeConfig = [IO.File]::ReadAllText((Join-Path $script:baseDir 'mpv-sistema-dolby.conf'))
-        if ($activeConfig -match 'bitrate=640:minch=6' -and $activeConfig -match '(?m)^audio-buffer=0\.032\s*$') { $profile = 'Fidelidade' }
-        elseif ($activeConfig -match 'bitrate=448:minch=6' -and $activeConfig -match '(?m)^audio-buffer=0\.064\s*$') { $profile = 'Estavel' }
-        $delayMatch = [regex]::Match($activeConfig,',adelay=([^,\]\r\n]+)')
-        if ($delayMatch.Success) {
-            $parts = $delayMatch.Groups[1].Value.Split('|')
-            if ($parts.Count -eq 6) {
-                for ($i = 0; $i -lt 6; $i++) {
-                    if ($parts[$i] -notmatch '^(\d+(?:\.\d+)?)(S?)$') { break }
-                    $value = [double]::Parse($Matches[1],[Globalization.CultureInfo]::InvariantCulture)
-                    if ($Matches[2] -eq 'S') { $value /= 48 }
-                    $delayMs[$i] = [math]::Round($value,3)
+    if ([IO.File]::Exists($script:systemStatePath)) {
+        try {
+            $saved=[IO.File]::ReadAllText($script:systemStatePath)|ConvertFrom-Json
+            foreach ($name in @('Estado','Ligado','Solicitado','Modo','InputMode','RunnerId','PlayerId','UltimoErro','AtualizadoEm','Perfil','AtrasosMs','Gain','Muted')) {
+                if ($saved.PSObject.Properties[$name]) {$status.$name=$saved.$name}
+            }
+            # Ligado is authored only after fresh WASAPI output/frames. Reject
+            # old success files, a stopped worker and recycled process IDs.
+            if ($status.Ligado) {
+                $updated=[DateTimeOffset]::MinValue
+                $fresh=[DateTimeOffset]::TryParse([string]$status.AtualizadoEm,[ref]$updated) -and
+                    ([DateTimeOffset]::UtcNow-$updated.ToUniversalTime()).TotalSeconds -ge -5 -and
+                    ([DateTimeOffset]::UtcNow-$updated.ToUniversalTime()).TotalSeconds -le 30
+                $runner=if ($status.RunnerId -match '^\d+$') {Get-Process -Id ([int]$status.RunnerId) -ErrorAction SilentlyContinue} else {$null}
+                $identity=$runner -and $saved.PSObject.Properties['RunnerStartedUtc'] -and
+                    $runner.StartTime.ToUniversalTime().ToString('o') -eq [string]$saved.RunnerStartedUtc
+                if (-not $fresh -or -not $identity) {
+                    $status.Ligado=$false;$status.Estado='Rota sem confirmacao recente - consulte o diagnostico'
+                    if (-not $status.UltimoErro) {$status.UltimoErro='O processo ou a confirmacao de saida deixou de responder.'}
                 }
             }
+            $status.UpmixAutomatico=$status.InputMode -eq 'Auto'
+        } catch {
+            $status.Ligado=$false;$status.Estado='Estado de audio temporariamente indisponivel'
+            $status.UltimoErro='Nao foi possivel ler o diagnostico do gerenciador.'
         }
-    } catch { $lastError = 'Nao foi possivel ler a configuracao do player.' }
+    }
     if ([IO.File]::Exists($script:actionErrorPath)) {
-        try { $lastError = ([IO.File]::ReadAllText($script:actionErrorPath) | ConvertFrom-Json).Mensagem }
-        catch { $lastError = 'Nao foi possivel ler o erro da ultima troca de audio.' }
+        try {$status.UltimoErro=([IO.File]::ReadAllText($script:actionErrorPath)|ConvertFrom-Json).Mensagem}
+        catch {$status.UltimoErro='Nao foi possivel ler o erro da ultima troca de audio.'}
     }
-    $status = if (-not $requested) { 'Desligado - audio direto na TV' }
-        elseif (-not $sony) { 'Aguardando HDMI da TV / decoder' }
-        elseif ($runner -and $outputAlive) { 'Ligado - Dolby Digital 5.1' }
-        elseif ($runner) { 'Reconectando a saida HDMI...' }
-        else { 'Desligado - clique em Ligar' }
-    $channelDelays = [pscustomobject]@{FL=$delayMs[0];FR=$delayMs[1];Central=$delayMs[2];LFE=$delayMs[3];SL=$delayMs[4];SR=$delayMs[5]}
-    [pscustomobject]@{Estado=$status;Ligado=($null -ne $runner -and $outputAlive);Solicitado=$requested;HDMI=$sony;RunnerId=if($runner){$runner.ProcessId}else{$null};PlayerId=if($outputAlive){$players[0].ProcessId}else{$null};AtrasoMs=$delayMs[0];AtrasosMs=$channelDelays;Perfil=$profile;UpmixAutomatico=(-not [IO.File]::Exists((Join-Path $script:baseDir 'audio-sistema.nativo')));AtualizadoEm=$updated;UltimoErro=$lastError}
-}
-
-function Start-AudioSystem {
-    Remove-Item -LiteralPath $script:disabledFile -ErrorAction SilentlyContinue
-    $runner = Get-OurRunner
-    $sony = Get-SonyEndpoint
-    if (-not $runner -and $sony) {
-        if ((Test-Path -LiteralPath $script:normalState) -and (Test-Path -LiteralPath $script:normalFormat)) {
-            $saved = Get-Content -LiteralPath $script:normalState -Raw | ConvertFrom-Json
-            if ($saved.SonyEndpoint -eq $sony) {
-                Invoke-SoundTool @('/SetSpeakersConfig', $sony, '0x3f', '0x3f', '0x3f')
-                Invoke-SoundTool @('/LoadDeviceFormat', $sony, ('"' + $script:normalFormat + '"'))
-            }
-        }
-        Invoke-SoundTool @('/SetAllowExclusive', $sony, '1')
-        Invoke-SoundTool @('/SetExclusivePriority', $sony, '1')
-    }
-    Invoke-SoundTool @('/SetDefault', $script:cableId, 'all')
-    Invoke-SoundTool @('/SetAppDefault', $script:cableId, 'all', 'opera.exe')
-    # Netflix Store 7.x is hosted by Edge; both the PWA and web player
-    # must feed the six-channel virtual endpoint, not the occupied HDMI.
-    Invoke-SoundTool @('/SetAppDefault', $script:cableId, 'all', 'msedge.exe')
-    if (-not $runner) {
-        Remove-Item -LiteralPath $script:stopFile -ErrorAction SilentlyContinue
-        $arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $script:runnerPath + '"'
-        Start-Process -FilePath powershell.exe -WindowStyle Hidden -ArgumentList $arguments | Out-Null
-    }
-    $wait = [Diagnostics.Stopwatch]::StartNew()
-    do {
-        Start-Sleep -Milliseconds 250
-        $status = Get-AudioStatus
-    } while (-not $status.Ligado -and $status.HDMI -and $wait.ElapsedMilliseconds -lt 7000)
     return $status
 }
 
-function Stop-AudioSystem {
-    Set-AudioFileTransaction @(
-        (New-AudioTextFile $script:disabledFile 'Desligado pelo controle do usuario' 'ASCII'),
-        (New-AudioTextFile $script:stopFile '' 'ASCII')
-    )
-    $runner = Get-OurRunner
-    if ($runner) {
-        $wait = [Diagnostics.Stopwatch]::StartNew()
-        while ((Get-OurRunner) -and $wait.ElapsedMilliseconds -lt 7000) { Start-Sleep -Milliseconds 200 }
-        $remaining = Get-OurRunner
-        if ($remaining -and $remaining.ProcessId -eq $runner.ProcessId -and $remaining.CreationDate -eq $runner.CreationDate) {
-            # Refresh ownership after waiting; a captured PID may already have ended.
-            foreach ($child in @(Get-AudioPlayerProcesses $remaining $script:baseDir)) {
-                $currentChild = Get-CimInstance Win32_Process -Filter "ProcessId=$($child.ProcessId)" -ErrorAction SilentlyContinue
-                if ($currentChild -and $currentChild.CreationDate -eq $child.CreationDate) { Stop-Process -Id $child.ProcessId -ErrorAction SilentlyContinue }
-            }
-            $currentRunner = Get-OurRunner
-            if ($currentRunner -and $currentRunner.CreationDate -eq $runner.CreationDate) { Stop-Process -Id $runner.ProcessId -ErrorAction SilentlyContinue }
-            Remove-Item -LiteralPath $script:pidFile -ErrorAction SilentlyContinue
-        }
-    }
-    $sony = Get-SonyEndpoint
-    if ($sony) {
-        $previousState = if(Test-Path -LiteralPath $script:normalState){Get-Content -LiteralPath $script:normalState -Raw | ConvertFrom-Json}else{$null}
-        if (-not $previousState -or $previousState.SonyEndpoint -ne $sony) {
-            $savedFormatPath = $script:normalFormat + '.save.' + [Guid]::NewGuid().ToString('N')
-            try {
-                Invoke-SoundTool @('/SaveDeviceFormat', $sony, ('"' + $savedFormatPath + '"'))
-                if (-not [IO.File]::Exists($savedFormatPath) -or (Get-Item -LiteralPath $savedFormatPath).Length -eq 0) { throw 'Nao foi possivel salvar o formato HDMI para a proxima reconexao.' }
-                Set-AudioFileTransaction @(
-                    ([pscustomobject]@{Path=$script:normalFormat;Bytes=[IO.File]::ReadAllBytes($savedFormatPath)}),
-                    (New-AudioTextFile $script:normalState (@{SonyEndpoint=$sony;Data=(Get-Date).ToString('s')} | ConvertTo-Json))
-                )
-            } finally { Remove-Item -LiteralPath $savedFormatPath -ErrorAction SilentlyContinue }
-        }
-        # Stereo bypasses the six-channel APO delay/upmix rules as well.
-        Invoke-SoundTool @('/SetSpeakersConfig', $sony, '0x3', '0x3', '0x3')
-        Invoke-SoundTool @('/SetDefaultFormat', $sony, '16', '48000', '2')
-        Invoke-SoundTool @('/SetDefault', $sony, 'all')
-    }
-    Invoke-SoundTool @('/SetAppDefault', 'DefaultRenderDevice', 'all', 'opera.exe')
-    Invoke-SoundTool @('/SetAppDefault', 'DefaultRenderDevice', 'all', 'msedge.exe')
-    return Get-AudioStatus
+function Start-AudioSystem {
+    $preferences=Get-AudioPreferences
+    return Invoke-AudioSystem 'Start' $preferences.Mode $preferences.InputMode
 }
 
-if ($Acao -eq 'Biblioteca') { return }
-if ($Acao -eq 'Status') { Get-AudioStatus | ConvertTo-Json -Compress; exit }
-if ($Acao -in @('Ligar','Desligar','UpmixAuto','Nativo')) {
-    $controlMutex = [Threading.Mutex]::new($false, 'Local\SistemaArtesanalAudio51Controle')
-    $controlLocked = $false
-    try {
-        $controlLocked = Wait-AudioMutex $controlMutex 10000
-        if (-not $controlLocked) { throw 'Outra mudanca de audio esta em andamento.' }
-        Remove-Item -LiteralPath $script:actionErrorPath -ErrorAction SilentlyContinue
-        if ($Acao -eq 'Ligar') { Start-AudioSystem | ConvertTo-Json -Compress }
-        elseif ($Acao -eq 'Desligar') { Stop-AudioSystem | ConvertTo-Json -Compress }
-        else {
-            $nativeFlag = Join-Path $script:baseDir 'audio-sistema.nativo'
-            if ($Acao -eq 'Nativo') { Set-AudioFileTransaction @((New-AudioTextFile $nativeFlag '' 'ASCII')) }
-            elseif (Test-Path -LiteralPath $nativeFlag) { Remove-Item -LiteralPath $nativeFlag -ErrorAction Stop }
-            Get-AudioStatus | ConvertTo-Json -Compress
+function Stop-AudioSystem {
+    $preferences=Get-AudioPreferences
+    return Invoke-AudioSystem 'Stop' $preferences.Mode $preferences.InputMode
+}
+
+function Get-AudioDelayText($Status) {
+    $delays=$Status.AtrasosMs
+    $values=@{}
+    foreach ($channel in @('FL','FR','CEN','LFE','SL','SR')) {
+        if (-not $delays -or -not $delays.PSObject.Properties[$channel] -or $null -eq $delays.$channel) {
+            return 'Atrasos: aguardando valores confirmados nesta rota.'
         }
+        try {$number=[double]$delays.$channel} catch {return 'Atrasos: aguardando valores confirmados nesta rota.'}
+        if ([double]::IsNaN($number) -or [double]::IsInfinity($number) -or $number -lt 0) {
+            return 'Atrasos: aguardando valores confirmados nesta rota.'
+        }
+        $values[$channel]=$number.ToString('0.0',[Globalization.CultureInfo]::GetCultureInfo('pt-BR'))
+    }
+    $front=if ($values.FL -eq $values.FR) {$values.FL} else {$values.FL+'/'+$values.FR}
+    $surround=if ($values.SL -eq $values.SR) {$values.SL} else {$values.SL+'/'+$values.SR}
+    $prefix=if ($Status.Ligado) {'Atrasos aplicados'} else {'Atrasos configurados'}
+    return ($prefix+': FL/FR '+$front+' ms; CEN '+$values.CEN+' ms; LFE '+$values.LFE+' ms; SL/SR '+$surround+' ms.')
+}
+
+if ($Acao -eq 'Biblioteca') {return}
+if ($Acao -eq 'Status') {Get-AudioStatus|ConvertTo-Json -Depth 8 -Compress;exit}
+if ($Acao -ne 'Painel') {
+    $controlMutex=[Threading.Mutex]::new($false,'Local\SistemaArtesanalAudio51Controle')
+    $locked=$false
+    try {
+        $locked=Wait-AudioMutex $controlMutex 10000
+        if (-not $locked) {throw 'Outra mudanca de audio esta em andamento.'}
+        Remove-Item -LiteralPath $script:actionErrorPath -ErrorAction SilentlyContinue
+        $preferences=Get-AudioPreferences
+        if ($PSBoundParameters.ContainsKey('Mode')) {$preferences.Mode=$Mode}
+        if ($PSBoundParameters.ContainsKey('InputMode')) {$preferences.InputMode=$InputMode}
+        if ($Acao -eq 'UpmixAuto') {$preferences.InputMode='Auto'}
+        elseif ($Acao -eq 'Nativo') {$preferences.InputMode='Native'}
+        elseif ($Acao -eq 'Stereo') {$preferences.InputMode='Stereo'}
+        Save-AudioPreferences $preferences.Mode $preferences.InputMode
+        if ($Acao -eq 'Desligar') {$status=Stop-AudioSystem}
+        elseif ($Acao -eq 'Ligar') {$status=Start-AudioSystem}
+        else {
+            $status=Get-AudioStatus
+            if ($status.Solicitado -or $status.Ligado) {$status=Start-AudioSystem}
+            else {$status.InputMode=$preferences.InputMode;$status.Modo=$preferences.Mode;$status.UpmixAutomatico=$preferences.InputMode -eq 'Auto'}
+        }
+        $status|ConvertTo-Json -Depth 8 -Compress
     } catch {
-        $actionError = $_
-        if ($controlLocked) {
+        $failure=$_
+        if ($locked) {
             try {
-                $errorRecord = @{Acao=$Acao;Mensagem=$actionError.Exception.Message;AtualizadoEm=[DateTime]::UtcNow.ToString('o')}
-                Set-AudioFileTransaction @((New-AudioTextFile $script:actionErrorPath ($errorRecord | ConvertTo-Json -Compress)))
+                $errorRecord=@{Acao=$Acao;Mensagem=$failure.Exception.Message;AtualizadoEm=[DateTime]::UtcNow.ToString('o')}
+                Set-AudioFileTransaction @((New-AudioTextFile $script:actionErrorPath ($errorRecord|ConvertTo-Json -Compress)))
             } catch { }
         }
-        throw $actionError
-    } finally {
-        if ($controlLocked) { $controlMutex.ReleaseMutex() }
-        $controlMutex.Dispose()
-    }
+        throw $failure
+    } finally {if ($locked) {$controlMutex.ReleaseMutex()};$controlMutex.Dispose()}
     exit
 }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
-$form = [Windows.Forms.Form]::new()
-$form.Text = 'Sistema de audio 5.1'
-$form.ClientSize = [Drawing.Size]::new(560,370)
-$form.StartPosition = 'CenterScreen'
-$form.FormBorderStyle = 'FixedDialog'
-$form.MaximizeBox = $false
-$form.Font = [Drawing.Font]::new('Segoe UI',11)
-$title = [Windows.Forms.Label]::new()
-$title.Text = 'Sistema de audio 5.1'
-$title.Font = [Drawing.Font]::new('Segoe UI',20,[Drawing.FontStyle]::Bold)
-$title.SetBounds(24,20,510,42)
-$stateLabel = [Windows.Forms.Label]::new()
-$stateLabel.SetBounds(26,75,505,32)
-$stateLabel.Font = [Drawing.Font]::new('Segoe UI',12,[Drawing.FontStyle]::Bold)
-$details = [Windows.Forms.Label]::new()
-$details.Text = "Ligado: Dolby Digital, upmix e correcao FL/FR 76,8 ms; CEN 5,8 ms; SL/SR 71 ms; LFE 0 ms.`r`nDesligado: audio direto na TV em estereo."
-$details.SetBounds(26,112,510,56)
-$on = [Windows.Forms.Button]::new()
-$on.Text = 'Ligar 5.1'
-$on.SetBounds(26,180,238,52)
-$off = [Windows.Forms.Button]::new()
-$off.Text = 'Desligar / audio direto'
-$off.SetBounds(286,180,248,52)
-$eq = [Windows.Forms.Button]::new()
-$eq.Text = 'Equalizador do subwoofer'
-$eq.SetBounds(26,244,508,42)
-$eq.Add_Click({
-    $eqPath = Join-Path $script:baseDir 'Equalizador do sub.ps1'
-    Start-Process powershell.exe -WindowStyle Hidden -ArgumentList ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $eqPath + '"') | Out-Null
-})
-$tip = [Windows.Forms.Label]::new()
-$tip.Text = 'Se o navegador nao acompanhar a troca, atualize o video (F5).'
-$tip.SetBounds(26,300,505,50)
-$tip.Font = [Drawing.Font]::new('Segoe UI',9)
-$form.Controls.AddRange(@($title,$stateLabel,$details,$on,$off,$eq,$tip))
-$script:actionProcess = $null
-$script:controlPath = $PSCommandPath
-$refresh = {
+$form=[Windows.Forms.Form]::new();$form.Text='Sistema de audio 5.1'
+$form.ClientSize=[Drawing.Size]::new(600,420);$form.StartPosition='CenterScreen'
+$form.FormBorderStyle='FixedDialog';$form.MaximizeBox=$false;$form.Font=[Drawing.Font]::new('Segoe UI',11)
+$title=[Windows.Forms.Label]::new();$title.Text='Sistema de audio 5.1'
+$title.Font=[Drawing.Font]::new('Segoe UI',20,[Drawing.FontStyle]::Bold);$title.SetBounds(24,20,555,42)
+$stateLabel=[Windows.Forms.Label]::new();$stateLabel.SetBounds(26,75,550,48)
+$stateLabel.Font=[Drawing.Font]::new('Segoe UI',12,[Drawing.FontStyle]::Bold)
+$routeLabel=[Windows.Forms.Label]::new();$routeLabel.Text='Rota de audio';$routeLabel.SetBounds(26,126,240,25)
+$routeMode=[Windows.Forms.ComboBox]::new();$routeMode.DropDownStyle='DropDownList';$routeMode.SetBounds(26,152,260,30)
+[void]$routeMode.Items.Add('PCM USB - PC para CM6206');[void]$routeMode.Items.Add('Optica - AC-3 recebido da TV')
+$sourceLabel=[Windows.Forms.Label]::new();$sourceLabel.Text='Formato da fonte';$sourceLabel.SetBounds(306,126,270,25)
+$sourceMode=[Windows.Forms.ComboBox]::new();$sourceMode.DropDownStyle='DropDownList';$sourceMode.SetBounds(306,152,270,30)
+[void]$sourceMode.Items.Add('Auto - preservar formato informado');[void]$sourceMode.Items.Add('Estereo confirmado - fazer upmix');[void]$sourceMode.Items.Add('5.1 nativo - preservar canais')
+$preferences=Get-AudioPreferences
+$routeMode.SelectedIndex=if ($preferences.Mode -eq 'Optical') {1} else {0}
+$sourceMode.SelectedIndex=@('Auto','Stereo','Native').IndexOf($preferences.InputMode)
+$details=[Windows.Forms.Label]::new();$details.SetBounds(26,198,550,48)
+$details.Text='PCM USB recebe o audio do navegador. A rota optica decodifica AC-3 da TV. Selecione estereo somente para uma fonte confirmada; 5.1 conserva seus canais.'
+$delayLabel=[Windows.Forms.Label]::new();$delayLabel.SetBounds(26,252,550,44)
+$delayLabel.Font=[Drawing.Font]::new('Segoe UI',10);$delayLabel.Text='Atrasos: aguardando valores confirmados nesta rota.'
+$on=[Windows.Forms.Button]::new();$on.Text='Ligar / aplicar rota';$on.SetBounds(26,302,260,44)
+$off=[Windows.Forms.Button]::new();$off.Text='Desligar / restaurar audio';$off.SetBounds(306,302,270,44)
+$tip=[Windows.Forms.Label]::new();$tip.SetBounds(26,356,550,56);$tip.Font=[Drawing.Font]::new('Segoe UI',9)
+$form.Controls.AddRange(@($title,$stateLabel,$routeLabel,$routeMode,$sourceLabel,$sourceMode,$details,$delayLabel,$on,$off,$tip))
+$script:actionProcess=$null;$script:controlPath=$PSCommandPath
+$refresh={
     try {
-    if ($script:actionProcess -and -not $script:actionProcess.HasExited) {
-        $stateLabel.Text = 'Trocando a rota de audio...'
-        $stateLabel.ForeColor = [Drawing.Color]::DarkOrange
-        return
-    }
-    if ($script:actionProcess) { $script:actionProcess.Dispose(); $script:actionProcess = $null }
-    $on.Enabled=$true; $off.Enabled=$true
-    $status = Get-AudioStatus
-    $stateLabel.Text = $status.Estado
-    $stateLabel.ForeColor = if($status.Ligado){[Drawing.Color]::ForestGreen}else{[Drawing.Color]::DimGray}
-    $tip.Text = if ($status.UltimoErro) { 'Ultimo erro: ' + $status.UltimoErro } else { 'Se o navegador nao acompanhar a troca, atualize o video (F5).' }
-    $tip.ForeColor = if ($status.UltimoErro) { [Drawing.Color]::Firebrick } else { [Drawing.Color]::DimGray }
+        if ($script:actionProcess -and -not $script:actionProcess.HasExited) {
+            $stateLabel.Text='Trocando a rota de audio...';$stateLabel.ForeColor=[Drawing.Color]::DarkOrange;return
+        }
+        if ($script:actionProcess) {$script:actionProcess.Dispose();$script:actionProcess=$null}
+        $on.Enabled=$true;$off.Enabled=$true;$routeMode.Enabled=$true;$sourceMode.Enabled=$true
+        $status=Get-AudioStatus
+        $stateLabel.Text=$status.Estado
+        $delayLabel.Text=Get-AudioDelayText $status
+        $stateLabel.ForeColor=if ($status.Ligado) {[Drawing.Color]::ForestGreen} elseif ($status.UltimoErro) {[Drawing.Color]::Firebrick} else {[Drawing.Color]::DimGray}
+        $tip.Text=if ($status.UltimoErro) {'Ultimo erro: '+$status.UltimoErro} else {'Depois de mudar a rota, atualize o video (F5). A confirmacao de saida nao substitui a verificacao de cada caixa.'}
+        $tip.ForeColor=if ($status.UltimoErro) {[Drawing.Color]::Firebrick} else {[Drawing.Color]::DimGray}
     } catch {
-        # A timer exception must not escape into WinForms/JIT or stop refreshes.
-        $stateLabel.Text = 'Atualizando dispositivos de audio...'
-        $stateLabel.ForeColor = [Drawing.Color]::DarkOrange
-        $tip.Text = 'Consulta temporariamente indisponivel; nova tentativa automatica.'
-        $tip.ForeColor = [Drawing.Color]::DimGray
+        # Endpoint replacement and partial state writes cannot escape the timer.
+        $stateLabel.Text='Atualizando dispositivos de audio...';$stateLabel.ForeColor=[Drawing.Color]::DarkOrange
+        $tip.Text='Consulta temporariamente indisponivel; nova tentativa automatica.';$tip.ForeColor=[Drawing.Color]::DimGray
     }
 }
-$runAction = {
+$runAction={
     param($action)
-    $on.Enabled=$false; $off.Enabled=$false
-    $stateLabel.Text = 'Trocando a rota de audio...'
-    $arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $script:controlPath + '" -Acao ' + $action
-    $script:actionProcess = Start-Process powershell.exe -WindowStyle Hidden -ArgumentList $arguments -PassThru
+    try {
+        $on.Enabled=$false;$off.Enabled=$false;$routeMode.Enabled=$false;$sourceMode.Enabled=$false
+        $stateLabel.Text='Trocando a rota de audio...'
+        $selectedMode=if ($routeMode.SelectedIndex -eq 1) {'Optical'} else {'Pcm'}
+        $selectedInput=@('Auto','Stereo','Native')[$sourceMode.SelectedIndex]
+        $arguments='-NoProfile -ExecutionPolicy Bypass -File "'+$script:controlPath+'" -Acao '+$action+' -Mode '+$selectedMode+' -InputMode '+$selectedInput
+        $script:actionProcess=Start-Process powershell.exe -WindowStyle Hidden -ArgumentList $arguments -PassThru
+    } catch {
+        $stateLabel.Text='Falha ao iniciar a troca';$tip.Text=$_.Exception.Message
+        $on.Enabled=$true;$off.Enabled=$true;$routeMode.Enabled=$true;$sourceMode.Enabled=$true
+    }
 }
-$on.Add_Click({ & $runAction 'Ligar' })
-$off.Add_Click({ & $runAction 'Desligar' })
-$timer = [Windows.Forms.Timer]::new()
-$timer.Interval=1500
-$timer.Add_Tick($refresh)
-$form.Add_Shown({ & $refresh; $timer.Start() })
-$form.Add_FormClosed({ $timer.Stop(); $timer.Dispose() })
+$on.Add_Click({& $runAction 'Ligar'});$off.Add_Click({& $runAction 'Desligar'})
+$timer=[Windows.Forms.Timer]::new();$timer.Interval=1500;$timer.Add_Tick($refresh)
+$form.Add_Shown({& $refresh;$timer.Start()})
+$form.Add_FormClosed({$timer.Stop();$timer.Dispose();if ($script:actionProcess) {$script:actionProcess.Dispose()}})
 [void]$form.ShowDialog()

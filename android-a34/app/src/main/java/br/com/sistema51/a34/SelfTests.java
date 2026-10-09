@@ -32,10 +32,12 @@ public final class SelfTests {
                 writer.writeFrames(output,block);
             }
         }
+        int[] referenceDelays={3686,3686,278,278,3408,3408};
         JSONArray checks=new JSONArray();boolean positionsCorrect=true;
-        for(int c=0;c<6;c++){int delay=first[c]-positions[c];positionsCorrect &= delay==profile.getDelaySamples(c);checks.put(new JSONObject().put("channel",c).put("expectedSamples",profile.getDelaySamples(c)).put("observedSamples",delay));}
+        for(int c=0;c<6;c++){int delay=first[c]-positions[c];positionsCorrect &= delay==referenceDelays[c]&&profile.getDelaySamples(c)==referenceDelays[c];checks.put(new JSONObject().put("channel",c).put("expectedSamples",referenceDelays[c]).put("observedSamples",delay));}
         AudioProfile restored=ProfileStore.fromJson(ProfileStore.toJson(AudioProfile.defaultProfile(),"Teste"));
-        boolean profileValid=restored.isAutomaticLfeHeadroom()&&restored.getDelaySamples(0)==3686;
+        boolean profileValid=restored.isAutomaticLfeHeadroom();
+        for(int c=0;c<6;c++)profileValid &= restored.getDelaySamples(c)==referenceDelays[c];
         AudioProfile.Builder mixBuilder=builder.inputMode(AudioProfile.InputMode.STEREO_UPMIX)
                 .upmixCenterGain(.7071f).upmixSurroundGain(.8f).upmixBassGain(.25f)
                 .upmixDifference(1).upmixBassCutoffHz(80);

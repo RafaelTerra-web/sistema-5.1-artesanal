@@ -102,6 +102,29 @@ function Invoke-AudioScript([string]$Script,[string[]]$Arguments,[int]$TimeoutMs
         return $text
     } finally {$process.Dispose()}
 }
+function Set-Cm6206MasterVolume([int]$Percent,[bool]$Muted) {
+    if ($Percent -lt 0 -or $Percent -gt 100) {throw 'Use volume de 0 a 100%.'}
+    $manager=[IO.Path]::GetFullPath((Join-Path $audioDir '..\scripts\pc-cm6206-system.ps1'))
+    if (-not [IO.File]::Exists($manager)) {throw 'Gerenciador CM6206 ausente.'}
+    $gain=($Percent/100.0).ToString('0.00',[Globalization.CultureInfo]::InvariantCulture)
+    $muteLiteral=if ($Muted) {'$true'} else {'$false'}
+    # Windows PowerShell -File does not parse Boolean literals for [bool].
+    # -Command receives only a quoted local path, a bounded number and a Boolean.
+    $command="& '"+$manager.Replace("'","''")+"' -Action Configure -Gain "+$gain+' -Muted '+$muteLiteral
+    $start=[Diagnostics.ProcessStartInfo]::new('powershell.exe')
+    $start.Arguments='-NoLogo -NoProfile -ExecutionPolicy Bypass -Command "'+$command+'"'
+    $start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
+    $process=[Diagnostics.Process]::new();$process.StartInfo=$start
+    try {
+        if (-not $process.Start()) {throw 'Nao foi possivel ajustar o volume.'}
+        $output=$process.StandardOutput.ReadToEndAsync();$errors=$process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(12000)) {try {$process.Kill()} catch {};throw 'O ajuste de volume demorou a responder.'}
+        if ($process.ExitCode -ne 0) {throw $errors.Result.Trim()}
+        $state=$output.Result.Trim()|ConvertFrom-Json
+        $applied=if ($state.PSObject.Properties['ConfigurationApplied']) {[bool]$state.ConfigurationApplied} else {[bool]$state.Ligado}
+        return @{AppliedLive=$applied;MasterPercent=$Percent;MasterMuted=$Muted}
+    } finally {$process.Dispose()}
+}
 while ($null -ne ($line=[Console]::ReadLine())) {
     $request=$null
     try {
@@ -109,16 +132,22 @@ while ($null -ne ($line=[Console]::ReadLine())) {
         switch ($request.type) {
             'snapshot' {
                 $snapshotWatch=[Diagnostics.Stopwatch]::StartNew()
-                $settings=Get-LfeSettings; $sessions=@(); $mediaError=$null
+                $sessions=@(); $mediaError=$null
                 try { $sessions=@(Get-MediaSessions) } catch { $mediaError=$_.Exception.Message }
                 if(-not $script:audioSnapshot -or ([DateTime]::UtcNow-$script:audioSnapshotAt).TotalSeconds -ge 5) {
                     $audioStatus=$null;$audioError=$null
                     try {$audioStatus=(Invoke-AudioScript 'Controle do sistema 5.1.ps1' @('-Acao','Status') 6000) | ConvertFrom-Json} catch {$audioError=$_.Exception.Message}
                     $script:audioSnapshot=@{Status=$audioStatus;Error=$audioError};$script:audioSnapshotAt=[DateTime]::UtcNow
                 }
-                $result=@{volume=$settings.MasterPercent;muted=$settings.MasterMuted;audioRunning=($script:audioSnapshot.Status -and $script:audioSnapshot.Status.Ligado);audioStatus=$script:audioSnapshot.Status;audioError=$script:audioSnapshot.Error;sessions=$sessions;windows=@([UniversalRemote]::Windows());mediaError=$mediaError;updatedAt=[DateTime]::UtcNow.ToString('o');snapshotElapsedMs=[Math]::Round($snapshotWatch.Elapsed.TotalMilliseconds,1)}
+                $volume=10;$muted=$false
+                if ($null -ne $script:audioSnapshot.Status.Gain) {$volume=[Math]::Round(100*[double]$script:audioSnapshot.Status.Gain)}
+                if ($null -ne $script:audioSnapshot.Status.Muted) {$muted=[bool]$script:audioSnapshot.Status.Muted}
+                $result=@{volume=$volume;muted=$muted;audioRunning=($script:audioSnapshot.Status -and $script:audioSnapshot.Status.Ligado);audioStatus=$script:audioSnapshot.Status;audioError=$script:audioSnapshot.Error;sessions=$sessions;windows=@([UniversalRemote]::Windows());mediaError=$mediaError;updatedAt=[DateTime]::UtcNow.ToString('o');snapshotElapsedMs=[Math]::Round($snapshotWatch.Elapsed.TotalMilliseconds,1)}
             }
-            'volume' { $result=Set-SystemMasterVolume -Percent ([int]$request.percent) -Muted ([bool]$request.muted) }
+            'volume' {
+                $result=Set-Cm6206MasterVolume -Percent ([int]$request.percent) -Muted ([bool]$request.muted)
+                $script:audioSnapshot=$null
+            }
             'media' { $result=Invoke-MediaAction $request }
             'input' {
                 [UniversalRemote]::Command([string]$request.window,[string]$request.action,[string]$request.mode,[string]$request.text,[int]$request.dx,[int]$request.dy)
@@ -132,15 +161,13 @@ while ($null -ne ($line=[Console]::ReadLine())) {
                 $result=@{opened=$true;mode=$request.mode;dolby51=$true;outputBitrateKbps=640}
             }
             'audio' {
-                if($request.action -notin @('Ligar','Desligar','UpmixAuto','Nativo')){throw 'Acao de audio invalida.'}
+                if($request.action -notin @('Ligar','Desligar','UpmixAuto','Stereo','Nativo','Pcm','Optical')){throw 'Acao de audio invalida.'}
                 $script:audioSnapshot=$null
-                $result=(Invoke-AudioScript 'Controle do sistema 5.1.ps1' @('-Acao',$request.action)) | ConvertFrom-Json
+                $arguments=if ($request.action -in @('Pcm','Optical')) {@('-Acao','Ligar','-Mode',$request.action)} else {@('-Acao',$request.action)}
+                $result=(Invoke-AudioScript 'Controle do sistema 5.1.ps1' $arguments 45000) | ConvertFrom-Json
             }
             'profile' {
-                if($request.profile -notin @('Fidelidade','Estavel')){throw 'Perfil de audio invalido.'}
-                $script:audioSnapshot=$null
-                $profileStatus=(Invoke-AudioScript 'Ajustar qualidade do audio.ps1' @('-Perfil',$request.profile,'-Json') 75000) | ConvertFrom-Json
-                $result=@{accepted=$true;profile=$request.profile;status=$profileStatus}
+                throw 'Os perfis do codificador HDMI antigo nao se aplicam a rota CM6206 atual.'
             }
             default { throw 'Comando invalido.' }
         }

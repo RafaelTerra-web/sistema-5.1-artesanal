@@ -54,7 +54,7 @@ public abstract class AppBridge {
             p.put("bypass", false);
             p.put("inputMode", "NATIVE_5_1");
             p.put("channelTrim", new JSONArray(new double[] {1, 1, 1, 1, 1, 1}));
-            p.put("delaySamples", new JSONArray(new int[] {3686, 3686, 278, 0, 3408, 3408}));
+            p.put("delaySamples", new JSONArray(new int[] {3686, 3686, 278, 278, 3408, 3408}));
             p.put("lfeEqEnabled", true);
             p.put("lfeEqFrequenciesHz", new JSONArray(new int[] {20, 25, 30, 40, 50, 60, 80, 100, 120}));
             p.put("lfeEqGainDb", new JSONArray(new double[] {6, 6, 6, 5.5, 1.5, -4, 1, 1, -2.5}));

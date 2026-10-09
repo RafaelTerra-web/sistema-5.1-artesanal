@@ -93,6 +93,45 @@ test('track selectors are blocked during a track command rather than silently dr
 });
 
 const netflixWindow = {id:'window:abcdef:100:123456',title:'Netflix',app:'msedge',current:false};
+test('PCM diagnostics distinguish native input and confirmed output without claiming audible boxes', async()=>{
+  const data=fixture();data.audioStatus={Modo:'Pcm',InputMode:'Native',Estado:'Ligado - PCM USB',Ligado:true,Solicitado:true,PlayerId:1};
+  const app=await ui(data);
+  assert.equal(app.e('audioState').textContent,'Ligado - PCM USB');
+  assert.equal(app.e('routePcm').attributes['aria-pressed'],'true');
+  assert.equal(app.e('upmixNative').attributes['aria-pressed'],'true');
+  assert.equal(app.e('upmixStereo').attributes['aria-pressed'],'false');
+  assert.equal(app.e('diagnostics').children.map(x=>x.textContent).includes('Saída WASAPI confirmada'),true);
+  assert.equal(app.e('audioState').textContent.includes('nas seis caixas'),false);
+});
+
+test('route and source controls send distinct commands rather than inferring stereo from silence', async()=>{
+  const app=await ui();app.routes.set('/api/audio',()=>({accepted:true}));
+  for (const id of ['routePcm','routeOptical','upmixStereo','upmixNative']) {app.e(id).onclick();await jobs();}
+  assert.deepEqual(app.calls.filter(x=>x.route==='/api/audio').map(x=>x.body.action),['Pcm','Optical','Stereo','Nativo']);
+});
+
+test('delay display shows the active session values including the requested LFE delay', async()=>{
+  const data=fixture();data.audioStatus={Modo:'Pcm',InputMode:'Stereo',Ligado:true,AtrasosMs:{FL:76.8,FR:76.8,CEN:5.8,LFE:5.8,SL:71,SR:71}};
+  const app=await ui(data);
+  assert.equal(app.e('delayState').textContent,'Atrasos aplicados na rota ativa.');
+  assert.equal(app.e('delayFront').textContent,'76,8 ms');assert.equal(app.e('delayCenter').textContent,'5,8 ms');
+  assert.equal(app.e('delayLfe').textContent,'5,8 ms');assert.equal(app.e('delaySurround').textContent,'71,0 ms');
+  data.audioStatus.AtrasosMs={FL:16.2,FR:18.3,CEN:6.4,LFE:4.5,SL:70.1,SR:69.2};
+  await app.run('poll()');
+  assert.equal(app.e('delayFront').textContent,'16,2 / 18,3 ms');
+  assert.equal(app.e('delayLfe').textContent,'4,5 ms');assert.equal(app.e('delaySurround').textContent,'70,1 / 69,2 ms');
+});
+
+test('missing or invalid delay metadata cannot advertise preset delays as applied', async()=>{
+  const data=fixture();const app=await ui(data);
+  assert.equal(app.e('delayState').textContent,'Aguardando valores confirmados nesta rota.');
+  assert.equal(app.e('delayLfe').textContent,'—');
+  data.audioStatus.AtrasosMs={FL:76.8,FR:76.8,CEN:5.8,LFE:5.8,SL:71,SR:-1};await app.run('poll()');
+  assert.equal(app.e('delayLfe').textContent,'—');
+  data.audioStatus.AtrasosMs.SR=71;data.audioRunning=false;await app.run('poll()');
+  assert.equal(app.e('delayState').textContent,'Atrasos configurados nesta sessão.');
+});
+
 test('Netflix catalog navigation and playback work without a media session or extension', async()=>{
   const data=fixture();data.sessions=[];data.windows=[netflixWindow];
   const app=await ui(data);app.routes.set('/api/input',()=>({accepted:true}));

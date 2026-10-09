@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 const root=path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const files=execFileSync('git',['ls-files','-z'],{cwd:root,encoding:'utf8'}).split('\0').filter(Boolean);
 if(!files.length)throw Error('O indice Git esta vazio. Selecione os arquivos antes de verificar.');
-const forbidden=/(?:^|\/)(?:node_modules|__pycache__|\.gradle|\.cxx|build|artifacts|mpv-portatil|analysis-libs|ud851b-rootfs|ferramentas|auditoria-cookie-[^/]+|revisao-[^/]+|validacao-audio-[^/]+)\/|(?:connection-private|connection|estado)\.json$|(?:^|\/)(?:endereco\.txt|local\.properties|signing\.properties|\.env[^/]*)$|backup-cadmiumconfig|\.(?:exe|dll|zip|bin|db|sqlite\d*|pyc|pid|wav|raw|pcm|spdif|apk|aab|dex|class|jks|keystore)$|\.log(?:\.|$)/i;
+const forbidden=/(?:^|\/)(?:node_modules|__pycache__|\.gradle|\.cxx|build|artifacts|mpv-portatil|analysis-libs|ud851b-rootfs|ferramentas|auditoria-cookie-[^/]+|revisao-[^/]+|validacao-audio-[^/]+)\/|(?:connection-private|connection|estado|cm6206-local|cm6206-state|cm6206-panel)\.json$|(?:^|\/)(?:endereco\.txt|local\.properties|signing\.properties|\.env[^/]*)$|backup-cadmiumconfig|\.(?:exe|dll|zip|bin|db|sqlite\d*|pyc|pid|wav|raw|pcm|spdif|apk|aab|dex|class|jks|keystore)$|\.log(?:\.|$)/i;
 const tokenPatterns=[/\b(?:ghp_|gho_|github_pat_)[A-Za-z0-9_]{20,}/,/\bAKIA[0-9A-Z]{16}\b/,/\bsk-[A-Za-z0-9_-]{30,}/,/Bearer\s+[A-Za-z0-9._-]{30,}/];
 const secrets=[];
 const local=path.join(root,'configuracao-pc','controle-remoto','connection-private.json');

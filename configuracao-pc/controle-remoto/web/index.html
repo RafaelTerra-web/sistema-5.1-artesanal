@@ -57,14 +57,16 @@
     <div id="audioPanel" role="tabpanel" aria-labelledby="audioTab" hidden>
       <section class="card system-card">
         <div class="row"><h2>Sistema de áudio</h2><span id="audioBadge" class="pill subdued">Verificando</span></div><p id="audioState">Verificando a rota de áudio</p>
-        <div class="row equal"><button id="audioOn" class="accent">Ligar 5.1</button><button id="audioOff">Áudio direto</button></div><p id="systemMessage" class="subtle">Áudio direto encerra o processamento e libera o HDMI.</p>
+        <div class="row equal"><button id="audioOn" class="accent">Ligar 5.1</button><button id="audioOff">Áudio direto</button></div><p id="systemMessage" class="subtle">Áudio direto encerra a rota e restaura o dispositivo anterior.</p>
+        <div class="row equal"><button id="routePcm" aria-pressed="false">PC → USB</button><button id="routeOptical" aria-pressed="false">TV → óptica AC-3</button></div><p class="subtle">A rota óptica precisa do cabo da TV na entrada SPDIF IN da placa.</p>
       </section>
       <section class="card">
-        <h2>Qualidade da saída</h2><div class="profile-options"><button data-profile="Fidelidade" aria-pressed="false"><b>Fidelidade</b><small>Dolby Digital · 640 kbps</small></button><button data-profile="Estavel" aria-pressed="false"><b>Estabilidade</b><small>Dolby Digital · 448 kbps</small></button></div><p class="subtle">Trocar o perfil pode interromper o som por alguns segundos.</p>
-        <h2 class="section-title">Conteúdo estéreo</h2><div class="row equal"><button id="upmixAuto" aria-pressed="false">Upmix automático</button><button id="upmixNative" aria-pressed="false">Preservar 5.1</button></div><p class="subtle">Preservar 5.1 evita expandir trechos multicanal com apenas os frontais ativos. Fontes declaradas estéreo continuam distribuídas entre as caixas.</p>
+        <h2>Formato da fonte</h2><div class="row equal"><button id="upmixAuto" aria-pressed="false">Auto por formato</button><button id="upmixNative" aria-pressed="false">Preservar 5.1</button></div><button id="upmixStereo" aria-pressed="false">Estéreo confirmado → upmix</button><p class="subtle">Auto preserva o formato informado. Quando o navegador entrega seis posições para uma fonte estéreo, confirme a fonte antes de selecionar upmix. Silêncio em algumas caixas não muda um programa 5.1 para estéreo.</p>
       </section>
       <section class="card">
-        <h2>Correção entre as caixas</h2><div class="channel-row"><span>FL · FR</span><strong>76,8 ms</strong></div><div class="channel-row"><span>Central</span><strong>5,8 ms</strong></div><div class="channel-row"><span>SL · SR</span><strong>71 ms</strong></div><div class="channel-row"><span>LFE</span><strong>0 ms</strong></div><p class="subtle">Os graves da central abaixo de 120 Hz também são somados ao LFE; a central continua com sua faixa completa. Volume e perfis preservam esses ajustes.</p>
+        <h2>Correção entre as caixas</h2><p id="delayState" class="subtle">Aguardando valores confirmados nesta rota.</p>
+        <div class="channel-row"><span>FL · FR</span><strong id="delayFront">—</strong></div><div class="channel-row"><span>Central</span><strong id="delayCenter">—</strong></div><div class="channel-row"><span>LFE</span><strong id="delayLfe">—</strong></div><div class="channel-row"><span>SL · SR</span><strong id="delaySurround">—</strong></div>
+        <p class="subtle">Os valores exibidos vêm do gerenciador desta sessão e são aplicados antes do envio à placa.</p>
         <details><summary>Estado do sistema</summary><dl id="diagnostics"><dt>Conexão</dt><dd>Verificando</dd></dl><button id="refreshStatus" class="small secondary">Atualizar estado</button></details>
       </section>
     </div>

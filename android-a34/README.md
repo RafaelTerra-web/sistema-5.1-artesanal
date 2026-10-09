@@ -1,8 +1,8 @@
 # Sistema 5.1 — aplicativo do A34
 
-Versão atual **0.5.0**: crossover LR4 opcional de FL/FR/FC, filtro subsônico LFE e troca FC/LFE apenas na saída USB conforme o mapa físico confirmado em teste. O laboratório decide pelo número real de canais decodificados: 1/2 usam upmix; 6 permanecem nativos, inclusive quando o perfil selecionado era estéreo. O serviço USB PCM ainda exige modo e formato explicitamente compatíveis; a captura óptica comprimida continua pendente. Novos controles ficam desligados na migração para conservar perfis existentes.
+Versão atual **0.6.0**: crossover LR4 opcional de FL/FR/FC, filtro subsônico LFE e troca FC/LFE apenas na saída USB conforme o mapa físico confirmado em teste. O laboratório decide pelo número real de canais decodificados: 1/2 usam upmix; 6 permanecem nativos, inclusive quando o perfil selecionado era estéreo. O serviço USB PCM ainda exige modo e formato explicitamente compatíveis; a captura óptica comprimida continua pendente. Novos controles ficam desligados na migração para conservar perfis existentes.
 
-Versão **0.5.0**, atualizada em **09/10/2026**. Aplicativo Android real com painel, edição do perfil, DSP, bancada de arquivos e diagnóstico USB. O histórico de validação no Galaxy A34 `SM-A346M`, Android 14, está nos relatórios abaixo. A CM6206 real foi reconhecida pelo telefone em testes anteriores usando um adaptador USB-A fêmea/USB-C macho OTG, sem hub alimentado.
+Versão **0.6.0**, atualizada em **09/10/2026**. Aplicativo Android real com painel, edição do perfil, DSP, bancada de arquivos e diagnóstico USB. O histórico de validação no Galaxy A34 `SM-A346M`, Android 14, está nos relatórios abaixo. A CM6206 real foi reconhecida pelo telefone em testes anteriores usando um adaptador USB-A fêmea/USB-C macho OTG, sem hub alimentado.
 
 O upmix agora tem controles de central, surrounds, graves, separação e corte, com presets **Preencher caixas** e **Ambiência**. No modo Ambiência, informação idêntica em L/R fica fora das traseiras; conteúdo estéreo com diferenças pode permanecer nelas. Perfis antigos conservam a matriz anterior. Na sessão PCM USB, selecione **Upmix estéreo** somente para uma entrada conhecida como estéreo; no laboratório, a decisão usa os canais decodificados; os presets não alteram master, trims, atrasos ou EQ. Veja [o relatório consolidado](../docs/PROGRESSO-A34-E-UPMIX-2026-10-09.md).
 
@@ -44,7 +44,7 @@ No Android Studio, abra esta pasta. No Windows:
 
 Ou use `gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug` com o JDK configurado. No Linux/macOS: `sh gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`.
 
-O script copia o APK para `artifacts/sistema51-a34-0.5.0-debug.apk`. A atualização por `adb install -r` conserva os dados se mantiver pacote e assinatura. O APK debug usa a chave de desenvolvimento local; para distribuir uma versão de produção será necessária assinatura própria. Chaves, `local.properties`, APKs, builds e resultados locais são ignorados pelo Git.
+O script copia o APK para `artifacts/sistema51-a34-0.6.0-debug.apk`. A atualização por `adb install -r` conserva os dados se mantiver pacote e assinatura. O APK debug usa a chave de desenvolvimento local; para distribuir uma versão de produção será necessária assinatura própria. Chaves, `local.properties`, APKs, builds e resultados locais são ignorados pelo Git.
 
 Para comparar o DSP do **APK instalado** com mpv no PC:
 
@@ -57,7 +57,7 @@ Os scripts coletam somente os arquivos de teste que o próprio app produziu. A c
 
 ## Validação desta versão
 
-A 0.5.0 passou compilação, 25 casos JUnit (incluindo preservação nativa, crossover frontal/subsônico, roteamento e guard analógico), e lint com zero erros/17 avisos. Os resultados da instrumentação no A34 e o alcance de cada teste estão no [relatório de progresso](../docs/PROGRESSO-A34-E-UPMIX-2026-10-09.md). O guard `Cm6206AnalogDriver` é uma base independente do transporte; ainda não está ligado ao HID Android nem ao serviço PCM.
+A 0.6.0 passou compilação, 27 casos JUnit (incluindo preservação nativa, crossover frontal/subsônico, roteamento e guard analógico), e lint com zero erros/17 avisos. Os resultados da instrumentação no A34 e o alcance de cada teste estão no [relatório de progresso](../docs/PROGRESSO-A34-E-UPMIX-2026-10-09.md). O guard `Cm6206AnalogDriver` é uma base independente do transporte; ainda não está ligado ao HID Android nem ao serviço PCM.
 
 Resultados anteriores, dos quais a nova versão conserva o núcleo:
 

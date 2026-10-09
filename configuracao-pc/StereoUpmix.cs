@@ -1,6 +1,6 @@
-// Detects six-channel PCM streams that carry only FL/FR and synthesizes the
-// four otherwise empty channels. The decision is heuristic: a native 5.1
-// program can have an extended passage with only FL/FR content.
+// Upmix is permitted only with a source channel count supplied by the decoder
+// or per-stream API, before mixing. A six-slot loopback contains no such
+// metadata: quiet FC/LFE/SL/SR is never evidence of a stereo source.
 // Expected order: FL, FR, FC, LFE, BL/SL, BR/SR; 48 kHz float32 interleaved.
 using System;
 
@@ -8,13 +8,9 @@ public sealed class StereoUpmix
 {
     private const int Channels = 6;
     private const int SampleRate = 48000;
-    private const int GraceFrames = SampleRate * 3 / 2; // 1.5 s of front-only audio
     private const int FadeFrames = SampleRate / 10; // 100 ms
-    private const int SilenceResetFrames = SampleRate * 3 / 2;
-    private const float ActivityFloor = 0.00001f;
     private float[] scratch = new float[0];
-    private int frontOnlyFrames;
-    private int silentFrames;
+    private int verifiedSourceChannels;
     private int fadeFrames;
     private Biquad low1;
     private Biquad low2;
@@ -29,49 +25,66 @@ public sealed class StereoUpmix
 
     public bool IsSynthesizing { get { return fadeFrames > 0; } }
 
-    // Use at a source/mode change. Process(..., forceNative:true) does this too.
+    // Use at a source/mode change. Every unverified/native call does this too.
     public void Reset()
     {
-        frontOnlyFrames = 0;
-        silentFrames = 0;
+        verifiedSourceChannels = 0;
         fadeFrames = 0;
         low1.Reset();
         low2.Reset();
     }
 
-    // Convenient for RelayLoopback's byte[] tick. No allocation after the
-    // largest observed packet; data is overwritten in place only if eligible.
+    // Compatibility entry point for legacy loopback callers. The boolean can
+    // force native but cannot attest that the original source was stereo.
+    // Both values therefore preserve all six slots exactly; the pre-mix APO
+    // remains responsible for automatically upmixing actual 1/2-channel streams.
     public void Process(byte[] data, int byteOffset, int frameCount, bool forceNative)
+    {
+        Process(data, byteOffset, frameCount, 0);
+    }
+
+    // Data is a six-slot carrier. Only a trusted source/decoder count of 1 or 2
+    // permits synthesis. For mono the original sample must be in slot FL; for
+    // stereo it must be in FL/FR. Counts 0 (unknown), 6 and other layouts preserve
+    // the carrier. Do not pass the loopback format or infer a count from energy.
+    // No allocation after the largest observed packet; native needs no scratch.
+    public void Process(byte[] data, int byteOffset, int frameCount, int sourceChannelCount)
     {
         if (data == null) throw new ArgumentNullException("data");
         if (byteOffset < 0 || frameCount < 0 || byteOffset > data.Length ||
             frameCount > (data.Length - byteOffset) / (Channels * sizeof(float)))
             throw new ArgumentOutOfRangeException("frameCount", "Invalid six-channel float32 buffer span");
-        if (forceNative) { Reset(); return; }
+        if (!CanSynthesize(sourceChannelCount)) { Reset(); return; }
         if (frameCount == 0) return;
 
         int sampleCount = checked(frameCount * Channels);
         int byteCount = checked(sampleCount * sizeof(float));
         if (scratch.Length < sampleCount) scratch = new float[sampleCount];
         Buffer.BlockCopy(data, byteOffset, scratch, 0, byteCount);
-        if (ProcessCore(scratch, 0, frameCount))
-            Buffer.BlockCopy(scratch, 0, data, byteOffset, byteCount);
+        ProcessCore(scratch, 0, frameCount, sourceChannelCount);
+        Buffer.BlockCopy(scratch, 0, data, byteOffset, byteCount);
     }
 
     // Direct float[] interface, also in place. sampleOffset counts floats.
     public void Process(float[] data, int sampleOffset, int frameCount, bool forceNative)
     {
+        Process(data, sampleOffset, frameCount, 0);
+    }
+
+    public void Process(float[] data, int sampleOffset, int frameCount, int sourceChannelCount)
+    {
         if (data == null) throw new ArgumentNullException("data");
         if (sampleOffset < 0 || frameCount < 0 || sampleOffset > data.Length ||
             frameCount > (data.Length - sampleOffset) / Channels)
             throw new ArgumentOutOfRangeException("frameCount", "Invalid six-channel float32 buffer span");
-        if (forceNative) { Reset(); return; }
-        if (frameCount != 0) ProcessCore(data, sampleOffset, frameCount);
+        if (!CanSynthesize(sourceChannelCount)) { Reset(); return; }
+        if (frameCount != 0) ProcessCore(data, sampleOffset, frameCount, sourceChannelCount);
     }
 
-    private static bool Active(float value)
+    private static bool CanSynthesize(int sourceChannelCount)
     {
-        return Math.Abs(value) > ActivityFloor;
+        if (sourceChannelCount < 0) throw new ArgumentOutOfRangeException("sourceChannelCount");
+        return sourceChannelCount == 1 || sourceChannelCount == 2;
     }
 
     private static float Clamp(float value)
@@ -81,59 +94,32 @@ public sealed class StereoUpmix
         return value;
     }
 
-    // Conservative at buffer boundaries: if any FC/LFE/BL/BR sample is
-    // active, preserve the *entire* buffer and immediately clear upmix state.
-    private bool ProcessCore(float[] data, int sampleOffset, int frameCount)
+    private void ProcessCore(float[] data, int sampleOffset, int frameCount, int sourceChannelCount)
     {
+        if (verifiedSourceChannels != sourceChannelCount)
+        {
+            Reset();
+            verifiedSourceChannels = sourceChannelCount;
+        }
         int end = sampleOffset + frameCount * Channels;
         for (int i = sampleOffset; i < end; i += Channels)
         {
-            if (Active(data[i + 2]) || Active(data[i + 3]) ||
-                Active(data[i + 4]) || Active(data[i + 5]))
-            {
-                Reset();
-                return false;
-            }
-        }
-
-        bool modified = false;
-        for (int i = sampleOffset; i < end; i += Channels)
-        {
             float left = data[i];
-            float right = data[i + 1];
-            bool frontsActive = Active(left) || Active(right);
-            if (frontsActive)
-            {
-                silentFrames = 0;
-                if (frontOnlyFrames < GraceFrames) frontOnlyFrames++;
-            }
-            else
-            {
-                if (silentFrames < SilenceResetFrames) silentFrames++;
-                if (silentFrames >= SilenceResetFrames)
-                {
-                    Reset();
-                    continue;
-                }
-            }
-
-            // Warm the filter during the grace period so the LFE has no
-            // start-up transient when the synthesized channels fade in.
+            float right = sourceChannelCount == 1 ? left : data[i + 1];
+            if (sourceChannelCount == 1) data[i + 1] = left;
+            // Fade newly synthesized channels over 100 ms; selection itself
+            // comes only from source metadata, never channel activity.
             double mono = (Double.IsNaN(left) || Double.IsInfinity(left) ||
                            Double.IsNaN(right) || Double.IsInfinity(right))
                           ? 0.0 : 0.25 * ((double)left + right);
             float filteredLfe = (float)low2.Process(low1.Process(mono));
-            if (frontOnlyFrames < GraceFrames) continue;
-
             if (fadeFrames < FadeFrames) fadeFrames++;
             float gain = (float)fadeFrames / FadeFrames;
             data[i + 2] = Clamp(0.5f * (left + right) * gain);
             data[i + 3] = Clamp(filteredLfe * gain);
             data[i + 4] = Clamp(0.5f * left * gain);
             data[i + 5] = Clamp(0.5f * right * gain);
-            modified = true;
         }
-        return modified;
     }
 
     private struct Biquad

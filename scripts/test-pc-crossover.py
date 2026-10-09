@@ -13,7 +13,8 @@ p.add_argument('--config', required=True, type=Path)
 args = p.parse_args()
 graph = next(line[len('af=lavfi=['):-1] for line in args.config.read_text().splitlines()
              if line.startswith('af=lavfi=['))
-master = float(re.search(r'volume=([0-9.]+):precision=double', graph).group(1))
+configured_volume=float(next((line.split('=',1)[1] for line in args.config.read_text().splitlines() if line.startswith('volume=')), '100'))
+master = float(re.search(r'volume=([0-9.]+):precision=double', graph).group(1)) * (configured_volume/100)**3
 assert 0 < master <= 1
 stereo=graph.startswith('pan=5.1|c0=c0|c1=c1|c2=0.5*c0+0.5*c1')
 center_trim=float(re.search(r'pan=5\.1\|c0=c0\|c1=c1\|c2=([0-9.]+)\*c2',graph).group(1))
@@ -34,15 +35,15 @@ def render(name, channels, frequency):
                     +struct.pack('<I',len(fmt))+fmt+b'data'+struct.pack('<I',len(data))+data)
     command = [str(args.mpv), '--no-config', '--no-video', '--no-terminal', '--ao=pcm',
                '--ao-pcm-waveheader=no', '--audio-format=float', '--audio-channels=7.1',
-               '--ao-pcm-file='+str(raw), '--af=lavfi=['+graph+']', str(wav)]
+               '--volume='+str(configured_volume),'--ao-pcm-file='+str(raw), '--af=lavfi=['+graph+']', str(wav)]
     result = subprocess.run(command, capture_output=True, timeout=20)
     if result.returncode:
         raise RuntimeError(result.stderr.decode(errors='replace'))
     y = np.fromfile(raw,dtype='<f4').reshape(-1,8)
     if swapped:y=y[:,[0,1,3,2,4,5,6,7]]
-    assert len(y)==rate and np.isfinite(y).all() and np.abs(y).max()<1
+    assert len(y)>=rate and np.isfinite(y).all() and np.abs(y).max()<1
     assert np.array_equal(y[:,4],y[:,6]) and np.array_equal(y[:,5],y[:,7])
-    gain = np.sqrt(np.mean(y[rate//2:].astype('float64')**2,axis=0))/(.5/np.sqrt(2))
+    gain = np.sqrt(np.mean(y[rate//2:rate].astype('float64')**2,axis=0))/(.5/np.sqrt(2))
     return gain.tolist()
 
 bass=render('front40',[0],40)

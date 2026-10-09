@@ -16,6 +16,7 @@ jobs:
       - run: npm test
       - run: npm run test:netflix
       - run: node scripts/verificar-publicacao.mjs
+      - run: python scripts/tests/test_cm6206_engine.py
   relay-windows:
     runs-on: windows-latest
     steps:
@@ -23,3 +24,11 @@ jobs:
       - name: Pool e filas sem audio real
         shell: powershell
         run: .\configuracao-pc\testar-relay-pool.ps1
+      - name: Estado, volume e painel sem audio real
+        shell: powershell
+        run: |
+          .\scripts\test-cm6206-system-state.ps1
+          .\scripts\test-cm6206-remote-volume.ps1
+          .\scripts\test-audio-panel-refresh.ps1
+          .\scripts\optical-tests\test-continuous-spdif-relay.ps1
+          .\scripts\optical-tests\test-ac3-encoder.ps1

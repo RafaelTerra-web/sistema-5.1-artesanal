@@ -619,7 +619,9 @@ public static class RelayLoopbackLowLatency
                 if (writeStarted != 0)
                 {
                     long now = Stopwatch.GetTimestamp();
-                    if (now - writeStarted > Stopwatch.Frequency * 750 / 1000)
+                    // WASAPI's first feed may take time after device activation.
+                    // This grace is bounded; keep the regular watchdog afterward.
+                    if (clock.ElapsedMilliseconds >= 3000 && now - writeStarted > Stopwatch.Frequency * 750 / 1000)
                     {
                         int queued;
                         lock (state.Gate) queued = state.QueuedBytes;

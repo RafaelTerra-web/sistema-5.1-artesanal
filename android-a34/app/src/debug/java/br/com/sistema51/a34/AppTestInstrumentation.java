@@ -5,7 +5,9 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import org.json.JSONObject;
+import org.json.JSONArray;
 import br.com.sistema51.a34.dsp.AudioProfile;
+import br.com.sistema51.a34.dsp.DelayProfileUpdate;
 import br.com.sistema51.a34.io.OfflineLab;
 import br.com.sistema51.a34.io.PlatformAc3Decoder;
 import br.com.sistema51.a34.io.WavIO;
@@ -19,6 +21,15 @@ public final class AppTestInstrumentation extends Instrumentation {
     @Override public void onStart(){
         Bundle result=new Bundle();Context context=getTargetContext();JSONObject report=new JSONObject();
         try{
+            String operation=arguments==null?null:arguments.getString("operation");
+            if(operation!=null){
+                if(arguments.containsKey("hardware"))throw new IllegalArgumentException("Não combine operação de perfil com teste de hardware.");
+                if("read-profile".equals(operation))report.put("profile",ProfileStore.loadJson(context));
+                else if("apply-delays".equals(operation))applyDelays(context,arguments.getString("delays-samples"),report);
+                else throw new IllegalArgumentException("Operação de perfil não suportada.");
+                report.put("operation",operation).put("ok",true).put("scope","Perfil no UID do APK debug; sem USB, captura ou reprodução.");
+                result.putString("report",report.toString());finish(0,result);return;
+            }
             if(arguments!=null&&"capture-source".equals(arguments.getString("hardware"))){
                 android.hardware.usb.UsbManager manager=(android.hardware.usb.UsbManager)context.getSystemService(Context.USB_SERVICE);
                 int deviceId=-1;
@@ -104,6 +115,39 @@ public final class AppTestInstrumentation extends Instrumentation {
         }catch(Throwable e){try{report.put("ok",false).put("error",e.toString());}catch(Exception ignored){}result.putString("report",report.toString());finish(1,result);}
     }
     private static void require(boolean condition,String label){if(!condition)throw new AssertionError(label);}
+    private static void applyDelays(Context context,String csv,JSONObject report)throws Exception{
+        // Validate the entire update before creating a journal or touching prefs.
+        int[] samples=DelayProfileUpdate.parseSamples(csv);
+        JSONObject before=ProfileStore.loadJson(context);
+        AudioProfile updated=DelayProfileUpdate.apply(ProfileStore.fromJson(before),samples);
+        JSONObject desired=ProfileStore.toJson(updated,before.getString("name"));
+        require(withoutDelays(before).equals(withoutDelays(desired)),"Only delays may change");
+        SharedPreferences preferences=context.getSharedPreferences("audio_profiles_v1",Context.MODE_PRIVATE);
+        String rawBefore=preferences.getString("active",null);
+        File dir=new File(context.getFilesDir(),"debug");
+        if(!dir.isDirectory()&&!dir.mkdirs())throw new IOException("Backup de perfil sem diretório.");
+        File backup=File.createTempFile("profile-before-delays-",".json",dir);
+        JSONObject journal=new JSONObject().put("operation","apply-delays").put("schemaVersion",1)
+                .put("createdAtEpochMs",System.currentTimeMillis()).put("hadSavedProfile",rawBefore!=null)
+                .put("savedActive",rawBefore==null?JSONObject.NULL:rawBefore).put("profileBefore",before)
+                .put("requestedDelaySamples",new JSONArray(samples)).put("appliedAndVerified",false);
+        writeSynced(backup,journal.toString(2));
+        report.put("backupPath",backup.getAbsolutePath()).put("delaySamplesBefore",before.getJSONArray("delaySamples"));
+        ProfileStore.saveJson(context,desired);
+        JSONObject loaded=ProfileStore.loadJson(context);
+        AudioProfile verified=ProfileStore.load(context);
+        for(int channel=0;channel<6;channel++)require(verified.getDelaySamples(channel)==samples[channel],"Persisted delays");
+        require(withoutDelays(before).equals(withoutDelays(loaded)),"Persistent update preserved all other settings");
+        journal.put("appliedAndVerified",true).put("profileAfter",loaded);
+        writeSynced(backup,journal.toString(2));
+        report.put("profile",loaded).put("otherSettingsPreserved",true).put("profileAppliedAndVerified",true);
+    }
+    private static String withoutDelays(JSONObject profile)throws Exception{
+        JSONObject copy=new JSONObject(profile.toString());copy.remove("delaySamples");return copy.toString();
+    }
+    private static void writeSynced(File file,String text)throws IOException{
+        try(FileOutputStream out=new FileOutputStream(file)){out.write(text.getBytes(StandardCharsets.UTF_8));out.flush();out.getFD().sync();}
+    }
     private static boolean sameFiles(File first,File second)throws IOException{
         if(first.length()!=second.length())return false;
         try(InputStream a=new FileInputStream(first);InputStream b=new FileInputStream(second)){

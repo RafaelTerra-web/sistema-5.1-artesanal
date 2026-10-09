@@ -173,23 +173,37 @@ function renderSystem() {
   const running = state.audioRunning;
   $('audioBadge').textContent = systemBusy ? 'Alterando' : state.audioError ? 'Verificar' : running ? '5.1 ativo' : 'Direto';
   $('audioBadge').classList.toggle('subdued', !running);
-  $('audioState').textContent = systemBusy ? 'Aguarde a mudança da rota de áudio…' : state.audioError ? 'Não foi possível confirmar a rota de áudio. Atualize o estado.' : running ? 'Dolby Digital nas seis caixas.' : 'Processamento 5.1 desligado. Volume salvo para a próxima ativação.';
+  $('audioState').textContent = systemBusy ? 'Aguarde a mudança da rota de áudio…' : state.audioError ? 'Não foi possível confirmar a rota de áudio. Atualize o estado.' : audio.Estado || (running ? 'Saída de áudio confirmada pelo gerenciador.' : 'Processamento 5.1 desligado. Volume salvo para a próxima ativação.');
   document.querySelector('.system-card').classList.toggle('busy', systemBusy);
-  for (const id of ['audioOn', 'audioOff', 'upmixAuto', 'upmixNative']) $(id).disabled = systemBusy;
+  for (const id of ['audioOn', 'audioOff', 'routePcm', 'routeOptical', 'upmixAuto', 'upmixNative', 'upmixStereo']) $(id).disabled = systemBusy;
   $('audioOn').disabled ||= running; $('audioOff').disabled ||= !running;
   document.querySelectorAll('[data-profile]').forEach(button => {
     const selected = audio.Perfil === button.dataset.profile;
-    button.setAttribute('aria-pressed', String(selected)); button.disabled = systemBusy || selected;
+    button.setAttribute('aria-pressed', String(selected)); button.disabled = true;
   });
-  $('upmixAuto').setAttribute('aria-pressed', String(audio.UpmixAutomatico === true));
-  $('upmixNative').setAttribute('aria-pressed', String(audio.UpmixAutomatico === false));
+  $('upmixAuto').setAttribute('aria-pressed', String(audio.InputMode === 'Auto' || (!audio.InputMode && audio.UpmixAutomatico === true)));
+  $('upmixNative').setAttribute('aria-pressed', String(audio.InputMode === 'Native'));
+  $('upmixStereo').setAttribute('aria-pressed', String(audio.InputMode === 'Stereo'));
+  $('routePcm').setAttribute('aria-pressed', String(audio.Modo === 'Pcm'));
+  $('routeOptical').setAttribute('aria-pressed', String(audio.Modo === 'Optical'));
+  const delays = audio.AtrasosMs || {};
+  const hasDelays = ['FL', 'FR', 'CEN', 'LFE', 'SL', 'SR'].every(channel => typeof delays[channel] === 'number' && Number.isFinite(delays[channel]) && delays[channel] >= 0);
+  const delayNumber = value => value.toLocaleString('pt-BR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+  const delayPair = (left, right) => delayNumber(left) === delayNumber(right) ? delayNumber(left) + ' ms' : delayNumber(left) + ' / ' + delayNumber(right) + ' ms';
+  $('delayState').textContent = hasDelays ? (running ? 'Atrasos aplicados na rota ativa.' : 'Atrasos configurados nesta sessão.') : 'Aguardando valores confirmados nesta rota.';
+  $('delayFront').textContent = hasDelays ? delayPair(delays.FL, delays.FR) : '—';
+  $('delayCenter').textContent = hasDelays ? delayNumber(delays.CEN) + ' ms' : '—';
+  $('delayLfe').textContent = hasDelays ? delayNumber(delays.LFE) + ' ms' : '—';
+  $('delaySurround').textContent = hasDelays ? delayPair(delays.SL, delays.SR) : '—';
   const rows = [
     ['Rota 5.1', running ? 'Ativa' : 'Desligada'],
-    ['Perfil', audio.Perfil === 'Fidelidade' ? '640 kbps · 32 ms de buffer' : audio.Perfil === 'Estavel' ? '448 kbps · 64 ms de buffer' : 'Verificando'],
-    ['Reprodução', audio.PlayerId ? 'Codificador ativo' : running ? 'Aguardando saída HDMI' : 'Desligada'],
+    ['Rota', audio.Modo === 'Optical' ? 'Óptica AC-3 → decodificação → USB' : 'PC → PCM USB'],
+    ['Fonte', audio.InputMode === 'Stereo' ? 'Estéreo confirmado · upmix' : audio.InputMode === 'Native' ? '5.1 nativo preservado' : 'Auto por formato informado'],
+    ['Reprodução', audio.PlayerId && running ? 'Saída WASAPI confirmada' : audio.Solicitado ? 'Aguardando confirmação de saída' : 'Desligada'],
     ['Jellyfin', state.jellyConnected ? `${(state.jellySessions || []).length} sessão(ões)` : 'Não conectado'],
     ['Última consulta', new Date().toLocaleTimeString('pt-BR')]
   ];
+  if (hasDelays) rows.push(['Atrasos', 'FL/FR ' + delayPair(delays.FL, delays.FR) + '; CEN ' + delayNumber(delays.CEN) + ' ms; LFE ' + delayNumber(delays.LFE) + ' ms; SL/SR ' + delayPair(delays.SL, delays.SR)]);
   if (audio.UltimoErro) rows.push(['Último erro de áudio', audio.UltimoErro]);
   if (state.audioError) rows.push(['Consulta de áudio', state.audioError]);
   if (state.backend?.lastWorkerError) rows.push(['Controle', state.backend.lastWorkerError.message || String(state.backend.lastWorkerError)]);
@@ -393,7 +407,9 @@ for (const id of ['audioTrack', 'subtitleTrack']) $(id).onblur = () => {
   if (trackView?.target === $('target').value) fillTracks(id, id === 'audioTrack' ? trackView.tracks.audio : trackView.tracks.subtitles);
 };
 for (const id of ['target', 'navTarget']) $(id).onblur = () => { if (state) render(); };
-$('audioOn').onclick = () => changeSystem('/api/audio', {action: 'Ligar'}, 'Ligando Dolby Digital 5.1…', 45000);
+$('audioOn').onclick = () => changeSystem('/api/audio', {action: 'Ligar'}, 'Ligando a rota 5.1…', 55000);
+$('routePcm').onclick = () => changeSystem('/api/audio', {action: 'Pcm'}, 'Aplicando PCM USB…', 55000);
+$('routeOptical').onclick = () => changeSystem('/api/audio', {action: 'Optical'}, 'Aplicando entrada óptica AC-3…', 55000);
 async function openNetflix(mode) {
   const buttons = [$('openNetflix'), $('openNetflixBrowser')];
   if (buttons.some(button => button.disabled)) return;
@@ -412,8 +428,9 @@ async function openNetflix(mode) {
 $('openNetflix').onclick = () => openNetflix('app');
 $('openNetflixBrowser').onclick = () => openNetflix('browser');
 $('audioOff').onclick = () => changeSystem('/api/audio', {action: 'Desligar'}, 'Liberando a saída HDMI…', 45000);
-$('upmixAuto').onclick = () => changeSystem('/api/audio', {action: 'UpmixAuto'}, 'Ativando upmix automático…', 45000);
-$('upmixNative').onclick = () => changeSystem('/api/audio', {action: 'Nativo'}, 'Preservando trechos 5.1 originais…', 45000);
+$('upmixAuto').onclick = () => changeSystem('/api/audio', {action: 'UpmixAuto'}, 'Usando o formato informado…', 55000);
+$('upmixNative').onclick = () => changeSystem('/api/audio', {action: 'Nativo'}, 'Preservando os canais 5.1 originais…', 55000);
+$('upmixStereo').onclick = () => changeSystem('/api/audio', {action: 'Stereo'}, 'Aplicando upmix à fonte estéreo confirmada…', 55000);
 document.querySelectorAll('[data-profile]').forEach(button => button.onclick = () => changeSystem('/api/profile', {profile: button.dataset.profile}, 'Trocando perfil; o áudio pode parar por alguns segundos…', 90000));
 $('reconnect').onclick = () => { poll(); }; $('refreshStatus').onclick = () => poll();
 $('jellyForm').onsubmit = async event => {

@@ -6,7 +6,7 @@ Código desenvolvido para transformar o áudio compartilhado do Windows em Dolby
 
 ## Plano aprovado para o Galaxy A34
 
-A versão atual é **0.5.0**, instalada e testada no A34 em 09/10/2026. Acrescenta crossover frontal/central, filtro subsônico e troca central/LFE na saída USB. Arquivos com seis canais decodificados permanecem nativos automaticamente; upmix se aplica a mono/estéreo. A [bancada PCM no PC](docs/PC-CM6206-PCM.md) verifica o grafo sem recodificação Dolby. Reprodução USB e captura óptica completas no A34 ainda dependem de validação física. O parágrafo abaixo registra a etapa 0.4.0.
+A versão atual é **0.6.0**, instalada e testada no A34 em 09/10/2026. Acrescenta crossover frontal/central, filtro subsônico e troca central/LFE na saída USB. Arquivos com seis canais decodificados permanecem nativos automaticamente; upmix se aplica a mono/estéreo. A [bancada PCM no PC](docs/PC-CM6206-PCM.md) verifica o grafo sem recodificação Dolby. Reprodução USB e captura óptica completas no A34 ainda dependem de validação física. O parágrafo abaixo registra a etapa 0.4.0.
 
 **Atualização de 09/10/2026:** o [aplicativo A34 0.4.0](android-a34/README.md) incorpora upmix ajustável, modos Preencher caixas/Ambiência e ferramentas de bancada. A rota HDMI 2 → Sony → óptico → CM6206 → USB no Windows recebeu e decodificou AC-3 de seis canais com CRC válido. Use **Sistema de áudio / Auto 1 / DD+ Não** na TV para a condição que passou. As seis caixas foram ouvidas no teste direto USB, após habilitar REG2.DRIVERON; o par surround exato continua aberto. Consulte o [relatório consolidado e próximos passos](docs/PROGRESSO-A34-E-UPMIX-2026-10-09.md) e a [comunicação CM6206](docs/CM6206-COMUNICACAO-2026-10-09.md). Captura comprimida, controle analógico integrado e mapa físico no Android, além da estabilidade completa, continuam pendentes; o plano abaixo preserva o histórico anterior.
 
@@ -118,3 +118,7 @@ O diretório mantém os nomes dos arquivos originais para preservar as referênc
 A lista de permissões do `.gitignore` publica código, documentos e exemplos. Ela deixa fora PIN, chave da ponte Netflix, cookies, perfis do navegador, logs, PIDs, backups locais, áudio de teste gerado, instaladores, firmware extraído e bibliotecas baixadas. O servidor gera suas próprias credenciais ao ser iniciado em uma cópia nova. [Manifesto de publicação](docs/PUBLICACAO.md) descreve a seleção.
 
 As dependências de terceiros mantêm seus próprios termos de distribuição. Este repositório não redistribui seus executáveis nem o player público completo da Netflix.
+
+## Montagem Fire TV e A34
+
+O [relatório da rota Fire TV → HDMI 2/Bravia → óptica/CM6206 → A34](docs/RELATORIO-ROTA-FIRE-TV-A34-2026-10-09.md) registra o mapa central/sub confirmado, os atrasos atualizados (incluindo LFE 5,8 ms), limites e plano de integração. A bancada óptica contínua ainda apresenta falhas de controle/driver e CRC; o A34 ainda não substitui o PC nessa cadeia. O [gerenciador PC](scripts/pc-cm6206-system.ps1) controla PCM/óptica e ganho no DSP, enquanto a [extensão experimental](configuracao-pc/browser-upmix-extensao/LEIA-ME.md) decide por canais decodificados antes do mixer; validação no Opera permanece pendente.

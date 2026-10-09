@@ -31,6 +31,11 @@
 !/configuracao-pc/*.cjs
 !/configuracao-pc/*.html
 !/configuracao-pc/*.conf
+!/configuracao-pc/browser-upmix-extensao/
+!/configuracao-pc/browser-upmix-extensao/**
+/configuracao-pc/cm6206-local.json
+/configuracao-pc/cm6206-state.json
+/configuracao-pc/cm6206-panel.json
 /configuracao-pc/mpv-sistema-dolby.conf
 /configuracao-pc/mpv-sistema-dolby-baixa-latencia.conf
 !/configuracao-pc/*.md

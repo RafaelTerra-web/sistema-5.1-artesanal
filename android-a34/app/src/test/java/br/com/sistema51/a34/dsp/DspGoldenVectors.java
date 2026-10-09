@@ -62,7 +62,7 @@ public final class DspGoldenVectors {
         writeFloat(new File(directory, name + "-output.f32le"), result);
         manifest.append("    {\"name\":\"").append(name).append("\",\"input\":\"").append(inputFile)
                 .append("\",\"output\":\"").append(name).append("-output.f32le\",\"inputChannels\":")
-                .append(channels).append(",\"masterGain\":0.25,\"delaysSamples\":[3686,3686,278,0,3408,3408],")
+                .append(channels).append(",\"masterGain\":0.25,\"delaysSamples\":[3686,3686,278,278,3408,3408],")
                 .append("\"surroundCutoffHz\":90,\"surroundSend\":1,\"centerCopyEnabled\":")
                 .append(profile.isCenterBassCopyEnabled()).append(",\"centerCutoffHz\":120,\"centerSend\":1,")
                 .append("\"eqFrequencyHz\":[20,25,30,40,50,60,80,100,120],")

@@ -1,5 +1,9 @@
 param([ValidateSet('Fidelidade','Estavel')][string]$Perfil = 'Fidelidade', [ValidateSet(0,16,24,32,64)][int]$BufferMs = 0, [ValidateSet('Atual','Padrao','Minimo')][string]$PeriodoHdmi = 'Atual', [switch]$Json)
 $ErrorActionPreference = 'Stop'
+if ([IO.File]::Exists((Join-Path $PSScriptRoot 'cm6206-local.json')) -or
+    [IO.File]::Exists((Join-Path $PSScriptRoot 'cm6206-state.json'))) {
+    throw 'Os perfis 448/640 kbps pertencem ao codificador HDMI antigo; use o gerenciador CM6206 para a rota atual.'
+}
 . (Join-Path $PSScriptRoot 'LFE equalizador comum.ps1')
 $controlMutex = [Threading.Mutex]::new($false,'Local\SistemaArtesanalAudio51Controle')
 $eqMutex = [Threading.Mutex]::new($false,'Local\SistemaArtesanalLfeEqualizador')

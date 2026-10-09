@@ -153,7 +153,7 @@ public final class AudioProfile {
         private boolean frontCrossoverEnabled=false,lfeSubsonicEnabled=false,swapCenterLfe=false;
         private float frontCutoffHz=90,frontBassSend=1,lfeSubsonicHz=20;
         private final float[] channelTrims = {1, 1, 1, 1, 1, 1};
-        private final int[] delays = {3686, 3686, 278, 0, 3408, 3408};
+        private final int[] delays = {3686, 3686, 278, 278, 3408, 3408};
         private boolean lfeEqEnabled = true;
         private final float[] eqFrequencies = {20, 25, 30, 40, 50, 60, 80, 100, 120};
         private final float[] eqGains = {6, 6, 6, 5.5f, 1.5f, -4, 1, 1, -2.5f};

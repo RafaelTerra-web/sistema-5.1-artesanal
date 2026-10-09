@@ -10,7 +10,7 @@ A base Android usa o mesmo `DspEngine` Java no laboratório de arquivos e no ser
 | Entrada | `NATIVE_5_1`, escolhida explicitamente |
 | Master | 0,04 = 4%; mute desligado |
 | Trims | 1 em todos os canais |
-| Atrasos em amostras | 3686, 3686, 278, 0, 3408, 3408 |
+| Atrasos em amostras | 3686, 3686, 278, 278, 3408, 3408 |
 | Crossover surrounds | Ativo; LR4 a 90 Hz; envio grave 1 |
 | Cópia grave da central | **Desativada**; 120 Hz/envio 1 se ativada |
 | EQ LFE | Ativo; Q 2; nove bandas abaixo |

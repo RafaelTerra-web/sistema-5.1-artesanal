@@ -122,7 +122,7 @@ async function handler(req,res){
    if(!Number.isInteger(b.percent)||b.percent<0||b.percent>100||typeof b.muted!=='boolean')fail('Volume invalido.');const result=await rpc({type:'volume',percent:b.percent,muted:b.muted});invalidateSnapshot();return respond(res,200,result);
   }
   if(route==='/api/audio'&&req.method==='POST'){
-   if(!['Ligar','Desligar','UpmixAuto','Nativo'].includes(b.action))fail('Acao invalida.');const result=await rpc({type:'audio',action:b.action},{timeoutMs:40000});invalidateSnapshot();return respond(res,200,result);
+   if(!['Ligar','Desligar','UpmixAuto','Stereo','Nativo','Pcm','Optical'].includes(b.action))fail('Acao invalida.');const result=await rpc({type:'audio',action:b.action},{timeoutMs:50000});invalidateSnapshot();return respond(res,200,result);
   }
   if(route==='/api/profile'&&req.method==='POST'){
    if(!['Fidelidade','Estavel'].includes(b.profile))fail('Perfil invalido.');const result=await rpc({type:'profile',profile:b.profile},{timeoutMs:80000});invalidateSnapshot();return respond(res,200,result);

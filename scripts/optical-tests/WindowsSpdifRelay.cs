@@ -53,7 +53,7 @@ namespace Sistema51.Cm6206
         public List<string> Problems = new List<string>();
     }
 
-    public static class WindowsSpdifRelay
+    public static partial class WindowsSpdifRelay
     {
         private static readonly Guid AudioId = new Guid("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
         private static readonly Guid CaptureId = new Guid("C8ADBD64-E71E-48A0-A4DE-185C395CD317");

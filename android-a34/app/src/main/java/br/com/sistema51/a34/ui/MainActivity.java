@@ -474,7 +474,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout bass = card();
         heading(bass, "Gerenciamento de graves", "As cópias de graves são somadas ao LFE. A margem evita ganho excessivo.");
-        addToggle(bass,"Trocar CEN/BASS na saída USB","Para central na saída R do módulo: troca apenas os slots enviados à placa.","swapCenterLfe",false);
+        addToggle(bass,"Trocar CEN/BASS na saída USB","Use apenas se um teste físico confirmar canais invertidos; a ligação no R não determina o mapa USB.","swapCenterLfe",false);
         addToggle(bass,"Crossover frontais e central","Retira graves de FL/FR/FC e envia ao LFE, antes dos atrasos.","frontCrossoverEnabled",false);
         addSlider(bass,"Corte frontais/central",(float)profile.optDouble("frontCutoffHz",90),40,160,1,"Hz",v->{put("frontCutoffHz",v);changed();});
         addSlider(bass,"Envio frontais/central → LFE",linearToDb(profile.optDouble("frontBassSend",1)),-24,0,.5f,"dB",v->{put("frontBassSend",dbToLinear(v));changed();});

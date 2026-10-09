@@ -146,6 +146,10 @@ function Invoke-LfeMpv([object[]]$Command, [int]$ConnectTimeoutMs = 1500) {
 }
 
 function Save-LfeSettings($Settings) {
+    if ([IO.File]::Exists((Join-Path $PSScriptRoot 'cm6206-local.json')) -or
+        [IO.File]::Exists((Join-Path $PSScriptRoot 'cm6206-state.json'))) {
+        throw 'Este equalizador pertence ao codificador HDMI antigo. A rota CM6206 usa sua propria configuracao DSP.'
+    }
     $mutex = [Threading.Mutex]::new($false,'Local\SistemaArtesanalLfeEqualizador')
     $locked = $false
     try {

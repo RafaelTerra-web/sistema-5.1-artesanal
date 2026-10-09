@@ -7,15 +7,22 @@ param(
     [Parameter(Mandatory=$true)][string]$CaptureEndpointId,
     [Parameter(Mandatory=$true)][string]$RenderEndpointId,
     [ValidateRange(60,120)][int]$CrossoverHz=90,
-    [ValidateRange(0,1)][double]$Gain=0.5,
+    [ValidateRange(0,1)][double]$Gain=0.1,
     [ValidateSet('Auto','Stereo','Native')][string]$InputMode='Auto',
     [ValidateRange(-36,0)][double]$CenterTrimDb=-12,
+    [ValidatePattern('^\d{1,5}(,\d{1,5}){5}$')][string]$DelaySamplesCsv='3686,3686,278,278,3408,3408',
     [switch]$SwapCenterLfe,
     [switch]$Shared,
     [string]$Application='opera.exe',
+    [string]$OutputDirectory,
+    [string]$IpcPath,
+    [switch]$SkipRouting,
+    [switch]$Muted,
     [switch]$ValidateOnly
 )
 $ErrorActionPreference='Stop'
+$delaySamples=@($DelaySamplesCsv.Split(',')|ForEach-Object {[int]$_})
+if(@($delaySamples|Where-Object {$_ -lt 0 -or $_ -gt 96000}).Count){throw 'Atraso fora do limite de 0–96000 amostras.'}
 $projectRoot=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 foreach($endpoint in @($CaptureEndpointId,$RenderEndpointId)) {
     if($endpoint -notmatch '^\{0\.0\.0\.00000000\}\.\{[0-9a-fA-F-]{36}\}$'){throw 'Use um ID de endpoint render WASAPI completo.'}
@@ -26,7 +33,9 @@ if($Application -notmatch '^[A-Za-z0-9_.-]+\.exe$'){throw 'Informe somente o nom
 $mutex=[Threading.Mutex]::new($false,'Local\SistemaArtesanalCM6206Pcm')
 $locked=$false
 $routed=$false
-$outputDir=Join-Path $projectRoot 'android-a34/artifacts/pc-cm6206-pcm'
+$outputDir=if($OutputDirectory){[IO.Path]::GetFullPath($OutputDirectory)}else{Join-Path $projectRoot 'android-a34/artifacts/pc-cm6206-pcm'}
+if(-not $outputDir.StartsWith((Join-Path $projectRoot 'android-a34/artifacts/'),[StringComparison]::OrdinalIgnoreCase)){throw 'Saída deve ficar em android-a34/artifacts.'}
+if($IpcPath -and $IpcPath -notmatch '^\\\\\.\\pipe\\SistemaArtesanal[A-Za-z0-9_.-]+$'){throw 'Pipe IPC inválido.'}
 New-Item -ItemType Directory -Path $outputDir -Force|Out-Null
 $stopPath=Join-Path $outputDir 'pcm.stop'
 $configPath=Join-Path $outputDir 'pcm.conf'
@@ -41,6 +50,7 @@ try {
     if(-not $locked){throw 'A rota PCM já está aberta.'}
     Add-Type -Path @((Join-Path $projectRoot 'configuracao-pc/StereoUpmix.cs'),(Join-Path $projectRoot 'configuracao-pc/RelayLoopback.cs'),(Join-Path $projectRoot 'configuracao-pc/RelayLoopbackLowLatency.cs'))
     [RelayLoopbackLowLatency]::VerifySourceFormat($CaptureEndpointId)
+    if(-not $SkipRouting){
     $snapshotPath=Join-Path $outputDir 'routes-before.json'
     Invoke-VolumeTool @('/sjson',('"'+$snapshotPath+'"'))
     $items=Get-Content -LiteralPath $snapshotPath -Raw|ConvertFrom-Json
@@ -51,12 +61,15 @@ try {
     $oldConsole=@($items|Where-Object { $_.Type -eq 'Device' -and $_.Default -eq 'Render' })
     $oldMultimedia=@($items|Where-Object { $_.Type -eq 'Device' -and $_.'Default Multimedia' -eq 'Render' })
     if($oldConsole.Count -ne 1 -or $oldMultimedia.Count -ne 1){throw 'Dispositivos padrão ambíguos.'}
+    }
     # Auto preserves this six-slot capture. Upmix can run before the system mix
     # only when the APO sees an actual 1/2-channel stream. Browsers may already
     # publish six slots for stereo; silence in four slots is never proof of stereo.
     # Stereo is an explicit override for a source independently known as stereo.
     [IO.File]::WriteAllText((Join-Path $outputDir 'audio-sistema.nativo'),'native')
-    $gainLiteral=$Gain.ToString('0.########',[Globalization.CultureInfo]::InvariantCulture)
+    $gainLiteral='1'
+    # mpv software volume is cubic: convert the linear DSP gain to its UI scale.
+    $volumeLiteral=([Math]::Pow($Gain,1.0/3.0)*100).ToString('0.########',[Globalization.CultureInfo]::InvariantCulture)
     $centerGain=[Math]::Pow(10,$CenterTrimDb/20).ToString('0.########',[Globalization.CultureInfo]::InvariantCulture)
     # LR4 of five satellites. Sum their lows into LFE with a six-source bound;
     # no positive EQ. Center trim protects the YS module at initial playback.
@@ -65,6 +78,7 @@ try {
         '[low]pan=5.1|c0=0*c0|c1=0*c1|c2=0*c2|c3=c0+c1+c2+c3+c4|c4=0*c3|c5=0*c4[bass];'+
         '[high]pan=5.1|c0=c0|c1=c1|c2=c2|c3=0*c0|c4=c3|c5=c4[top];'+
         '[lfe][bass][top]amix=inputs=3:normalize=0:dropout_transition=0,'+
+        'adelay='+ (($delaySamples|ForEach-Object {[string]$_+'S'}) -join '|')+','+
         'pan=5.1|c0=c0|c1=c1|c2='+$centerGain+'*c2|c3=0.1666666666667*c3|c4=c4|c5=c5,'+
         'highpass=f=20:p=2:c=LFE,volume='+$gainLiteral+':precision=double,'+
         'pan=7.1|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c4|c7=c5'
@@ -87,7 +101,7 @@ audio-samplerate=48000
 audio-spdif=
 af=lavfi=[$graph]
 audio-buffer=0.040
-volume=100
+volume=$volumeLiteral
 volume-max=100
 cache=no
 demuxer=lavf
@@ -106,17 +120,19 @@ media-controls=no
 input-media-keys=no
 "@
     [IO.File]::WriteAllText($configPath,$config,[Text.Encoding]::ASCII)
+    if($IpcPath){[IO.File]::AppendAllText($configPath,"`ninput-ipc-server=$IpcPath`n",[Text.Encoding]::ASCII)}
+    if($Muted){[IO.File]::AppendAllText($configPath,"`nmute=yes`n",[Text.Encoding]::ASCII)}
     if($ValidateOnly){[pscustomobject]@{Preflight='ok';Config=$configPath;PlaybackStarted=$false;InputMode=$InputMode;CrossoverHz=$CrossoverHz;Stop=$stopPath};return}
-    $legacy=@(Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'" | Where-Object {
-        $_.ProcessId -ne $PID -and $_.CommandLine -match '(?i)(?:[\\/]|\s)rodar-audio-sistema\.ps1(?:["\s]|$)'
-    })
+    $legacy=@(Get-CimInstance Win32_Process -Filter "Name='mpv.exe'" | Where-Object { $_.CommandLine -match '(?i)mpv-sistema-dolby(?:-baixa-latencia)?\.conf' })
     if($legacy.Count){throw 'Pare o gerenciador Dolby antigo antes de abrir a rota PCM.'}
     if(Test-Path -LiteralPath $stopPath){Remove-Item -LiteralPath $stopPath}
+    if(-not $SkipRouting){
     $routed=$true
     Invoke-VolumeTool @('/SetDefault',$CaptureEndpointId,'0')
     Invoke-VolumeTool @('/SetDefault',$CaptureEndpointId,'1')
     Invoke-VolumeTool @('/SetAppDefault',$CaptureEndpointId,'0',$Application)
     Invoke-VolumeTool @('/SetAppDefault',$CaptureEndpointId,'1',$Application)
+    }
     [RelayLoopbackLowLatency]::Run($CaptureEndpointId,$MpvPath,$configPath,$logPath,$stopPath)
 } finally {
     if($routed){

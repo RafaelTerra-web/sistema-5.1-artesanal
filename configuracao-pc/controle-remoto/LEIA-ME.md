@@ -11,11 +11,11 @@ O PIN e o endereço também ficam em `endereco.txt`. O servidor usa sessões ind
 ## O que há no painel
 
 - **Controle:** escolha qualquer janela aberta em **Aplicativo do PC**. No modo **Teclado**, as setas enviam teclas e OK envia Enter; **Próximo foco** e **Foco anterior** percorrem os campos e botões. No modo **Mouse**, as setas movem o ponteiro e OK clica; arraste o dedo na área de toque e toque para clicar. Há rolagem, voltar página e envio de texto ao campo selecionado. A sessão Jellyfin continua com navegação própria pelo servidor.
-- **Áudio:** ligar/desligar a rota 5.1, escolher Dolby Digital 640 kbps ou perfil estável de 448 kbps, ativar upmix automático ou preservar trechos originalmente 5.1. Trocar o perfil pode interromper o som por alguns segundos.
+- **Áudio:** ligar/desligar a rota CM6206, selecionar **PC → USB** ou **TV → óptica AC-3**, e escolher **Auto por formato**, **Preservar 5.1** ou **Estéreo confirmado → upmix**. A rota óptica precisa do cabo da TV conectado em SPDIF IN. Auto não identifica estéreo pelo silêncio nas outras caixas.
 - **Aplicativos:** entrar no Jellyfin e conferir a extensão opcional da Netflix. A senha do Jellyfin não é salva em arquivo; o token fica apenas na memória da sessão pareada.
-- **Volume mestre:** a faixa inferior fica acessível nas três abas. Ajusta as seis caixas na rota processada, sem refazer o grafo a cada toque.
+- **Volume mestre:** a faixa inferior fica acessível nas três abas. Salva o ganho linear e o mudo no gerenciador CM6206, que aplica o ajuste pelo IPC do player. Uma confirmação de aplicação ao vivo exige o reconhecimento do gerenciador; um valor salvo com a rota desligada vale para a próxima ativação.
 
-O atraso de correção é **76,8 ms para FL/FR**, **5,8 ms para a central**, **71 ms para SL/SR** e **0 ms para LFE**. O painel do subwoofer controla o equalizador e o corte dos graves das surrounds. Uma cópia dos graves da central abaixo de 120 Hz é somada ao LFE, sem cortar a central. A escolha de perfil e o volume preservam esses ajustes.
+Desde 09/10/2026, o painel delega início, parada e restauração da rota ao gerenciador CM6206. O estado ligado exige saída WASAPI e avanço da reprodução, além de processo e confirmação recentes. Isso confirma a cadeia de software, e não a audibilidade ou a posição física de cada caixa. O equalizador e os perfis 448/640 kbps do codificador HDMI antigo ficam bloqueados nesta cadeia para evitar ajustes sem efeito na rota atual. Os atrasos aparecem a partir dos metadados da sessão: **FL/FR 76,8 ms, central 5,8 ms, LFE 5,8 ms e surrounds 71 ms** são os valores solicitados para esta etapa. A interface aguarda os metadados em vez de mostrar esses valores como aplicados em uma sessão desconhecida.
 
 ### Jellyfin
 
@@ -41,6 +41,8 @@ Em 04/10/2026, a versão com controle universal passou em **13 testes automatiza
 
 O iniciador seleciona uma interface conectada com IPv4 válido e ignora endereços antigos de interfaces desconectadas. O endereço do celular acompanha a interface selecionada. Abra o atalho da Área de Trabalho para iniciar o controle na rede local e atender ao pedido de autorização do Windows, quando necessário. Para encerrar use `configuracao-pc/Parar controle remoto.cmd`.
 
-### Subgrave
+### Subgrave da cadeia antiga
 
-A curva atual tem reforços que se somam perto de 26 Hz. Um cálculo do EQ indica aproximadamente **+14 dB antes da margem da soma de graves**, com possibilidade de saturação em sinais LFE fortes. Isto não prova distorção no áudio reproduzido; não alterei a curva escolhida. Confira o resultado em escuta ou medição. Uma proteção moderada de pico após o EQ pode ser incluída caso seja necessário.
+A curva registrada na cadeia antiga tinha reforços que se somavam perto de 26 Hz, calculados em aproximadamente **+14 dB antes da margem da soma de graves**. Este registro é histórico; não descreve o DSP da nova rota CM6206. Os testes de ganho, crossover e subgrave atuais estão em [PC-CM6206-PCM.md](../../docs/PC-CM6206-PCM.md).
+
+Em 09/10/2026, passaram **20 testes Node** de interface/backend/YouTube e verificações PowerShell isoladas de timer, estado recente, identidade de processo, ganho/mudo e exibição dos atrasos da sessão, incluindo LFE 5,8 ms. Esses testes não reproduzem áudio nem validam o hardware.
