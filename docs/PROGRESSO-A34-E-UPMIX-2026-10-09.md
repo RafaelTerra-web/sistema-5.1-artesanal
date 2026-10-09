@@ -73,6 +73,22 @@ O erro “Não há mais dados disponíveis”, RegistryKey.GetValueNames/Timer.O
 
 ## Plano atualizado, em ordem
 
+### Ajuste posterior: música do PC, FxSound e distorção
+
+O usuário relatou distorção nas frontais e possivelmente surrounds durante música/vídeo, fora dos testes falados. A inspeção mostrou **Opera GX → dispositivo virtual FxSound → saída USB analógica CM6206**, sem processo mpv ativo. Não tratar essa escuta como novo teste do percurso HDMI/Sony/óptico nem do app Android.
+
+A placa estava quase a 0 dB em oito controles de canal. Foram reduzidos FL/FR e ambos os pares surround a aproximadamente **−12 dB**, preservando os controles de FC/LFE. Restou distorção. Depois, a entrada virtual FxSound foi reduzida em 6 dB; o programa também sincronizou o master da saída USB. Leitura: FxSound −6,07 dB; USB FL/FR/surround −17,37 dB e FC/LFE −5,44 dB. O usuário disse que ficou limpo, mas em seguida relatou distorção considerável no máximo do Windows/navegador. Isso confirma melhora em uma condição, não aprovação de volume máximo.
+
+Nova redução nos controles de FL/FR e ambos os pares surround: cerca de **18 dB em relação a FC/LFE**. O driver quantizou a solicitação: leitura final −23,00 dB nos seis slots de satélites e −5,44 dB em FC/LFE, diferença 17,56 dB. O usuário repetiu o trecho no máximo e confirmou **“Ficou limpo”**. Essa regulagem foi mantida. Capturas de configurações antes/depois estão privadas em artifacts. É uma confirmação auditiva naquele trecho/volume; leituras do driver não medem pressão sonora, margem elétrica ou ausência de clipping em qualquer fonte. Calibração relativa e teste prolongado continuam pendentes.
+
+O FxSound instalado é **1.1.16.0**. Sua [documentação de suporte](https://forum.fxsound.com/t/troubleshooting/3105) informa PCM de 2–8 canais e ausência de suporte ao transporte não-PCM Dolby Digital/DTS. Portanto, não afirmar que é exclusivamente estéreo; suporte nominal não confirma mapa físico, upmix ou preservação de 5.1 nesta versão/montagem. O [desenvolvedor explica](https://forum.fxsound.com/t/what-does-dynamic-boost-do-exactly/6900) que Dynamic Boost tem limitação de picos digitais, mas não impede sobrecarga de amplificadores/caixas. A causa exata desta distorção continua aberta; comparar o trecho com efeitos desativados e observar níveis digitais antes de atribuir ao hardware.
+
+No A34, FxSound não integra a arquitetura. Trims do próprio DSP fazem a redução antes do clamp. A calibração de margem/trims deve cobrir entrada normalizada no master máximo autorizado, e depois ser confirmada fisicamente; baixar só o volume geral não estabelece essa condição. Conversão inicial: −12 dB equivale a ganho 0,2511886; −18 dB a 0,1258925. Não transplantar cegamente o volume Windows para o Android, cujos transportes ainda precisam de validação.
+
+O CI Android publicado também passou no GitHub após incluir preparação explícita de command-line tools e retirar o pacote SDK obsoleto tools. [Execução validada](https://github.com/RafaelTerra-web/sistema-5.1-artesanal/actions/runs/37969023704). As falhas iniciais de ambiente estão preservadas no histórico; compilação, JUnit e lint concluíram na repetição.
+
+### Próximas etapas
+
 1. **Mapa físico:** distinguir BL/BR versus SL/SR e CEN/BASS. Depois suportar explicitamente seis/oito slots no app; índice Android não identifica automaticamente conector.
 2. **Inicialização analógica A34:** adaptador HID do guard, journal persistente antes de DRIVERON, leitura, restauração/recuperação e reconexão. A leitura anterior encontrou HID ocupado com claim sem forçar; resolver mantendo interfaces de áudio disponíveis. Base Java não prova esse acesso.
 3. **Captura óptica Android:** identificar seletor/fonte UAC; preservar bytes, sync IEC61937, ordem de palavras, frames/CRC, continuidade e simultaneidade. Converter carrier PCM diretamente para float/DSP não implementa AC-3.
