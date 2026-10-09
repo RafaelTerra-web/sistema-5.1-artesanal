@@ -133,3 +133,7 @@ O CI Android publicado também passou no GitHub após incluir preparação expl�
 O conhecimento publicado é síntese técnica dos testes e da escuta relatada, distinguindo ambos. Credenciais, serial ADB, pareamentos, dados de conta e gravações de terceiros ficam fora da publicação.
 
 Atualização da recuperação: restaurados formato padrão estéreo e máscaras originais a partir do backup. A tentativa de saída exclusiva de oito canais continuou falhando com `0x80070001`, embora IsFormatSupported aceitasse o formato. A leitura HID permaneceu com erro. Solicitado retirar a óptica temporariamente e usar outra porta USB para isolar a condição física. O formato padrão atual voltou a dois canais; isso não altera o grafo Native de seis canais, mas a nova sessão USB ainda não abriu.
+
+O CI publicado para a 0.5.0 passou: [Aplicativo A34](https://github.com/RafaelTerra-web/sistema-5.1-artesanal/actions/runs/37979134746) e [Testes isolados](https://github.com/RafaelTerra-web/sistema-5.1-artesanal/actions/runs/37979134907). Nenhum APK, captura, serial ou credencial foi incluído no commit.
+
+Nova porta USB, óptica retirada: leitura dos seis registradores voltou a funcionar, REG2=0x6004/DRIVERON desligado. Após o ajuste dos volumes por canal via Windows, leitura HID voltou a falhar; o wrapper parou antes de escrever DRIVERON ou iniciar reprodução. A sequência sugere investigar a interação de controle de volume/driver, mas não estabelece causalidade. Próximo ensaio solicitado: reconectar na mesma porta e usar só ganho baixo no DSP, sem alterar controles de volume da placa.
