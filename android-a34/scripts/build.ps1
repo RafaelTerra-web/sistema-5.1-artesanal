@@ -27,7 +27,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Compilação ou verificações falharam.' }
     $outputDirectory = Join-Path $projectPath 'artifacts'
     New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-    $apkPath = Join-Path $outputDirectory 'sistema51-a34-0.4.0-debug.apk'
+    $apkPath = Join-Path $outputDirectory 'sistema51-a34-0.5.0-debug.apk'
     Copy-Item -LiteralPath (Join-Path $projectPath 'app\build\outputs\apk\debug\app-debug.apk') -Destination $apkPath -Force
     Get-FileHash -LiteralPath $apkPath -Algorithm SHA256
 } finally { Pop-Location }

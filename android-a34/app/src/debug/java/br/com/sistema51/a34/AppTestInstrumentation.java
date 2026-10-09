@@ -62,12 +62,16 @@ public final class AppTestInstrumentation extends Instrumentation {
             String before=preferences.getString("active",null);
             try{
                 AudioProfile changed=AudioProfile.defaultProfile().toBuilder().masterGain(.123f)
-                        .upmixDifference(.65f).upmixCenterGain(.8f).upmixBassCutoffHz(90).build();
+                        .upmixDifference(.65f).upmixCenterGain(.8f).upmixBassCutoffHz(90)
+                        .frontCrossoverEnabled(true).frontCutoffHz(90).lfeSubsonicEnabled(true).lfeSubsonicHz(20).swapCenterLfe(true).build();
                 ProfileStore.saveJson(context,ProfileStore.toJson(changed,"Persistência"));
                 require(ProfileStore.load(context).getMasterGain()==.123f,"Persistent profile");
                 AudioProfile loaded=ProfileStore.load(context);
                 require(loaded.getUpmixDifference()==.65f&&loaded.getUpmixCenterGain()==.8f&&loaded.getUpmixBassCutoffHz()==90,"Persistent upmix");
                 report.put("upmixPersistence",true);
+                require(loaded.isFrontCrossoverEnabled()&&loaded.isLfeSubsonicEnabled()
+                        &&loaded.getFrontCutoffHz()==90&&loaded.getLfeSubsonicHz()==20&&loaded.isSwapCenterLfe(),"Persistent bass management");
+                report.put("bassManagementPersistence",true);
                 boolean rejected=false;try{ProfileStore.fromJson(new JSONObject("{\"masterGain\":2}"));}catch(IllegalArgumentException expected){rejected=true;}
                 require(rejected,"Invalid profile rejected");report.put("profilePersistence",true).put("invalidProfileRejected",true);
             }finally{SharedPreferences.Editor edit=preferences.edit();if(before==null)edit.remove("active");else edit.putString("active",before);require(edit.commit(),"Restore profile");}
@@ -78,6 +82,19 @@ public final class AppTestInstrumentation extends Instrumentation {
             JSONObject decoder=PlatformAc3Decoder.decode(ac3,decoded);require(decoder.getInt("channels")==6,"AC3 six channels");report.put("decoder",decoder);
             JSONObject pipeline=OfflineLab.processWav(decoded,processed,AudioProfile.defaultProfile());
             require(pipeline.getLong("outputFrames")==pipeline.getLong("inputFrames")+pipeline.getInt("tailFrames"),"DSP tail accounting");require(pipeline.getLong("clippedSamples")==0,"Default profile headroom");report.put("offlinePipeline",pipeline);
+            File protectedNative=new File(dir,"protected-native.wav");
+            JSONObject protectedReport=OfflineLab.processWav(decoded,protectedNative,AudioProfile.defaultProfile().toBuilder()
+                    .inputMode(AudioProfile.InputMode.STEREO_UPMIX).swapCenterLfe(true).build());
+            require("NATIVE_5_1".equals(protectedReport.getJSONObject("profile").getString("inputMode"))
+                    &&sameFiles(processed,protectedNative),"Six decoded channels must bypass upmix and stay logically ordered in files");
+            report.put("decoded51Protected",true).put("fileChannelOrderLogical",true);
+            AudioProfile.Builder bassBuilder=AudioProfile.defaultProfile().toBuilder().masterGain(.5f)
+                    .lfeEqEnabled(false).frontCrossoverEnabled(true).frontCutoffHz(90)
+                    .lfeSubsonicEnabled(true).lfeSubsonicHz(20).channelTrim(AudioProfile.FC,.1258925f);
+            for(int c=0;c<6;c++)bassBuilder.delaySamples(c,0);
+            JSONObject bassPipeline=OfflineLab.processWav(decoded,new File(dir,"bass-processed.wav"),bassBuilder.build());
+            require(bassPipeline.getLong("clippedSamples")==0,"Bass management headroom");
+            report.put("bassManagementPipeline",bassPipeline);
             android.hardware.usb.UsbManager manager=(android.hardware.usb.UsbManager)context.getSystemService(Context.USB_SERVICE);
             if(manager.getDeviceList().isEmpty()){
                 AppFacade facade=new AppFacade(context);try{facade.start();JSONObject status=facade.snapshot();require(!status.optBoolean("running"),"No USB implies no playback");report.put("noUsbStartBlocked",true).put("snapshot",status);}finally{facade.close();}
@@ -87,5 +104,14 @@ public final class AppTestInstrumentation extends Instrumentation {
         }catch(Throwable e){try{report.put("ok",false).put("error",e.toString());}catch(Exception ignored){}result.putString("report",report.toString());finish(1,result);}
     }
     private static void require(boolean condition,String label){if(!condition)throw new AssertionError(label);}
+    private static boolean sameFiles(File first,File second)throws IOException{
+        if(first.length()!=second.length())return false;
+        try(InputStream a=new FileInputStream(first);InputStream b=new FileInputStream(second)){
+            byte[] left=new byte[32768],right=new byte[32768];int n;
+            while((n=a.read(left))!=-1){int offset=0,count;while(offset<n&&(count=b.read(right,offset,n-offset))>0)offset+=count;
+                if(offset!=n)return false;for(int i=0;i<n;i++)if(left[i]!=right[i])return false;}
+            return b.read()==-1;
+        }
+    }
     private static void write(File file,String text)throws IOException{try(OutputStream out=new FileOutputStream(file)){out.write(text.getBytes(StandardCharsets.UTF_8));}}
 }

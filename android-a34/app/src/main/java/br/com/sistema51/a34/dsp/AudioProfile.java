@@ -24,6 +24,8 @@ public final class AudioProfile {
     private final float centerBassCutoffHz, centerBassSend;
     private final float effectiveLfeHeadroom;
     private final float upmixCenterGain, upmixSurroundGain, upmixBassGain, upmixDifference, upmixBassCutoffHz;
+    private final boolean frontCrossoverEnabled, lfeSubsonicEnabled, swapCenterLfe;
+    private final float frontCutoffHz, frontBassSend, lfeSubsonicHz;
 
     private AudioProfile(Builder b) {
         masterGain = range("masterGain", b.masterGain, 0, 1);
@@ -36,6 +38,12 @@ public final class AudioProfile {
         upmixBassGain = range("upmixBassGain", b.upmixBassGain, 0, 1);
         upmixDifference = range("upmixDifference", b.upmixDifference, 0, 1);
         upmixBassCutoffHz = range("upmixBassCutoffHz", b.upmixBassCutoffHz, 40, 160);
+        frontCrossoverEnabled=b.frontCrossoverEnabled;
+        frontCutoffHz=range("frontCutoffHz",b.frontCutoffHz,40,160);
+        frontBassSend=range("frontBassSend",b.frontBassSend,0,1);
+        lfeSubsonicEnabled=b.lfeSubsonicEnabled;
+        lfeSubsonicHz=range("lfeSubsonicHz",b.lfeSubsonicHz,10,40);
+        swapCenterLfe=b.swapCenterLfe;
         channelTrims = b.channelTrims.clone();
         delays = b.delays.clone();
         for (int c = 0; c < CHANNEL_COUNT; c++) {
@@ -67,7 +75,8 @@ public final class AudioProfile {
                 for (float gain : eqGains) positiveDb += Math.max(0, gain);
             }
             double mixBound = 1 + (surroundCrossoverEnabled ? 2 * surroundBassSend : 0)
-                    + (centerBassCopyEnabled ? centerBassSend : 0);
+                    + (frontCrossoverEnabled ? 3 * frontBassSend : 0)
+                    + (centerBassCopyEnabled && !frontCrossoverEnabled ? centerBassSend : 0);
             effectiveLfeHeadroom = (float) (Math.pow(10, -positiveDb / 20) / mixBound);
         } else {
             effectiveLfeHeadroom = lfeHeadroom;
@@ -88,6 +97,12 @@ public final class AudioProfile {
     /** 0 duplicates L/R; 1 uses normalized L-R/R-L, cancelling coherent mono. */
     public float getUpmixDifference() { return upmixDifference; }
     public float getUpmixBassCutoffHz() { return upmixBassCutoffHz; }
+    public boolean isFrontCrossoverEnabled(){return frontCrossoverEnabled;}
+    public float getFrontCutoffHz(){return frontCutoffHz;}
+    public float getFrontBassSend(){return frontBassSend;}
+    public boolean isLfeSubsonicEnabled(){return lfeSubsonicEnabled;}
+    public float getLfeSubsonicHz(){return lfeSubsonicHz;}
+    public boolean isSwapCenterLfe(){return swapCenterLfe;}
     public float getChannelTrim(int channel) { return channelTrims[channelIndex(channel)]; }
     public int getDelaySamples(int channel) { return delays[channelIndex(channel)]; }
     public boolean isLfeEqEnabled() { return lfeEqEnabled; }
@@ -106,6 +121,12 @@ public final class AudioProfile {
     public float getCenterBassCutoffHz() { return centerBassCutoffHz; }
     public float getCenterBassSend() { return centerBassSend; }
     public int getRequiredInputChannels() { return inputMode == InputMode.NATIVE_5_1 ? 6 : 2; }
+    /** Resolve only from trustworthy decoded file/transport metadata, never meters. */
+    public AudioProfile forSourceChannels(int channels) {
+        if(channels==6)return inputMode==InputMode.NATIVE_5_1?this:toBuilder().inputMode(InputMode.NATIVE_5_1).build();
+        if(channels==1||channels==2)return inputMode==InputMode.STEREO_UPMIX?this:toBuilder().inputMode(InputMode.STEREO_UPMIX).build();
+        throw new IllegalArgumentException("Fonte precisa declarar 1, 2 ou 6 canais.");
+    }
 
     static int channelIndex(int c) {
         if (c < 0 || c >= CHANNEL_COUNT) throw new IllegalArgumentException("channel must be 0..5");
@@ -129,6 +150,8 @@ public final class AudioProfile {
         // Preserve the earlier matrix for profiles that predate these controls.
         private float upmixCenterGain = 1, upmixSurroundGain = .5f, upmixBassGain = .5f;
         private float upmixDifference = 0, upmixBassCutoffHz = 120;
+        private boolean frontCrossoverEnabled=false,lfeSubsonicEnabled=false,swapCenterLfe=false;
+        private float frontCutoffHz=90,frontBassSend=1,lfeSubsonicHz=20;
         private final float[] channelTrims = {1, 1, 1, 1, 1, 1};
         private final int[] delays = {3686, 3686, 278, 0, 3408, 3408};
         private boolean lfeEqEnabled = true;
@@ -147,6 +170,9 @@ public final class AudioProfile {
             upmixCenterGain = p.upmixCenterGain; upmixSurroundGain = p.upmixSurroundGain;
             upmixBassGain = p.upmixBassGain; upmixDifference = p.upmixDifference;
             upmixBassCutoffHz = p.upmixBassCutoffHz;
+            frontCrossoverEnabled=p.frontCrossoverEnabled;frontCutoffHz=p.frontCutoffHz;frontBassSend=p.frontBassSend;
+            lfeSubsonicEnabled=p.lfeSubsonicEnabled;lfeSubsonicHz=p.lfeSubsonicHz;
+            swapCenterLfe=p.swapCenterLfe;
             System.arraycopy(p.channelTrims, 0, channelTrims, 0, CHANNEL_COUNT);
             System.arraycopy(p.delays, 0, delays, 0, CHANNEL_COUNT);
             lfeEqEnabled = p.lfeEqEnabled;
@@ -169,6 +195,12 @@ public final class AudioProfile {
         public Builder upmixBassGain(float value) { upmixBassGain = value; return this; }
         public Builder upmixDifference(float value) { upmixDifference = value; return this; }
         public Builder upmixBassCutoffHz(float value) { upmixBassCutoffHz = value; return this; }
+        public Builder frontCrossoverEnabled(boolean value){frontCrossoverEnabled=value;return this;}
+        public Builder frontCutoffHz(float value){frontCutoffHz=value;return this;}
+        public Builder frontBassSend(float value){frontBassSend=value;return this;}
+        public Builder lfeSubsonicEnabled(boolean value){lfeSubsonicEnabled=value;return this;}
+        public Builder lfeSubsonicHz(float value){lfeSubsonicHz=value;return this;}
+        public Builder swapCenterLfe(boolean value){swapCenterLfe=value;return this;}
         public Builder channelTrim(int channel, float value) { channelTrims[channelIndex(channel)] = value; return this; }
         public Builder delaySamples(int channel, int value) { delays[channelIndex(channel)] = value; return this; }
         public Builder lfeEqEnabled(boolean value) { lfeEqEnabled = value; return this; }

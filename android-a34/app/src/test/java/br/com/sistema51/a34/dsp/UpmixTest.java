@@ -72,4 +72,11 @@ public final class UpmixTest {
         }
         try {flat().toBuilder().upmixBassCutoffHz(0).build();fail();}catch(IllegalArgumentException expected){}
     }
+    @Test public void sourceMetadataProtectsQuietNativeScenesEvenWhenUpmixWasSelected(){
+        AudioProfile selected=flat().toBuilder().inputMode(AudioProfile.InputMode.STEREO_UPMIX).build();
+        float[] quietNative={.2f,.3f,0,0,0,0};
+        assertArrayEquals(quietNative,render(quietNative,selected.forSourceChannels(6),1),0);
+        assertEquals(AudioProfile.InputMode.STEREO_UPMIX,flat().forSourceChannels(2).getInputMode());
+        try{flat().forSourceChannels(8);fail();}catch(IllegalArgumentException expected){}
+    }
 }

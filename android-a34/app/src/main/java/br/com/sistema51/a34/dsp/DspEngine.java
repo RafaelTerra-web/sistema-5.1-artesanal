@@ -20,6 +20,8 @@ public final class DspEngine {
     private final Biquad[] eq = new Biquad[AudioProfile.EQ_BAND_COUNT];
     private final Biquad[] surroundLow = filters(4), surroundHigh = filters(4);
     private final Biquad[] centerLow = filters(2), stereoLow = filters(2);
+    private final Biquad[] frontLow=filters(6),frontHigh=filters(6);
+    private final Biquad lfeSubsonic=new Biquad();
     private final AtomicLong resetRequests = new AtomicLong();
     private long appliedResetRequest;
     private int ringPosition;
@@ -44,6 +46,8 @@ public final class DspEngine {
     }
     /** Latest submitted settings; applied by the next process call. */
     public AudioProfile getProfile() { return requested.profile; }
+    /** Audio-thread read after process: settings of that exact processed block. */
+    public AudioProfile getAppliedProfile(){return active.profile;}
     public int getMaxBlockFrames() { return maxBlockFrames; }
     public long getClippedSamples() { return clippedSamples; }
     public long getNonFiniteInputSamples() { return nonFiniteInputSamples; }
@@ -100,7 +104,14 @@ public final class DspEngine {
                     frame[AudioProfile.SL] = cascade(surroundHigh, 0, left);
                     frame[AudioProfile.SR] = cascade(surroundHigh, 2, right);
                 }
-                if (p.isCenterBassCopyEnabled()) {
+                if(p.isFrontCrossoverEnabled()) {
+                    for(int c=0;c<3;c++) {
+                        double original=frame[c];
+                        frame[AudioProfile.LFE]+=p.getFrontBassSend()*cascade(frontLow,c*2,original);
+                        frame[c]=cascade(frontHigh,c*2,original);
+                    }
+                }
+                if (p.isCenterBassCopyEnabled() && !p.isFrontCrossoverEnabled()) {
                     frame[AudioProfile.LFE] += p.getCenterBassSend()
                             * cascade(centerLow, 0, frame[AudioProfile.FC]);
                 }
@@ -114,6 +125,7 @@ public final class DspEngine {
                 if (++ringPosition == RING_LENGTH) ringPosition = 0;
                 double lfe = frame[AudioProfile.LFE] * p.getEffectiveLfeHeadroom();
                 if (p.isLfeEqEnabled()) for (Biquad filter : eq) lfe = filter.process(lfe);
+                if(p.isLfeSubsonicEnabled())lfe=lfeSubsonic.process(lfe);
                 frame[AudioProfile.LFE] = lfe;
             }
             for (int c = 0; c < CHANNEL_COUNT; c++) {
@@ -156,6 +168,9 @@ public final class DspEngine {
         for (Biquad filter : surroundHigh) filter.coefficients(next.surroundHigh);
         for (Biquad filter : centerLow) filter.coefficients(next.centerLow);
         for (Biquad filter : stereoLow) filter.coefficients(next.stereoLow);
+        for(Biquad filter:frontLow)filter.coefficients(next.frontLow);
+        for(Biquad filter:frontHigh)filter.coefficients(next.frontHigh);
+        lfeSubsonic.coefficients(next.lfeSubsonic);
         active = next;
         if (changedTopology) clearHistory();
     }
@@ -167,6 +182,8 @@ public final class DspEngine {
                 || a.getSurroundCutoffHz() != b.getSurroundCutoffHz()
                 || a.getCenterBassCutoffHz() != b.getCenterBassCutoffHz()
                 || a.getUpmixBassCutoffHz() != b.getUpmixBassCutoffHz()) return true;
+        if(a.isFrontCrossoverEnabled()!=b.isFrontCrossoverEnabled()||a.getFrontCutoffHz()!=b.getFrontCutoffHz()
+                ||a.isLfeSubsonicEnabled()!=b.isLfeSubsonicEnabled()||a.getLfeSubsonicHz()!=b.getLfeSubsonicHz())return true;
         for (int c = 0; c < CHANNEL_COUNT; c++) if (a.getDelaySamples(c) != b.getDelaySamples(c)) return true;
         for (int i = 0; i < AudioProfile.EQ_BAND_COUNT; i++) {
             if (a.getLfeEqGainDb(i) != b.getLfeEqGainDb(i)
@@ -182,6 +199,9 @@ public final class DspEngine {
         for (Biquad filter : surroundHigh) filter.reset();
         for (Biquad filter : centerLow) filter.reset();
         for (Biquad filter : stereoLow) filter.reset();
+        for(Biquad filter:frontLow)filter.reset();
+        for(Biquad filter:frontHigh)filter.reset();
+        lfeSubsonic.reset();
         ringPosition = 0;
     }
 
@@ -189,6 +209,7 @@ public final class DspEngine {
         final AudioProfile profile;
         final double[][] eqCoefficients = new double[AudioProfile.EQ_BAND_COUNT][];
         final double[] surroundLow, surroundHigh, centerLow, stereoLow;
+        final double[] frontLow,frontHigh,lfeSubsonic;
         CompiledProfile(AudioProfile profile) {
             this.profile = profile;
             for (int i = 0; i < eqCoefficients.length; i++) {
@@ -199,6 +220,9 @@ public final class DspEngine {
             surroundHigh = Biquad.highPass(profile.getSurroundCutoffHz(), BUTTERWORTH_Q);
             centerLow = Biquad.lowPass(profile.getCenterBassCutoffHz(), BUTTERWORTH_Q);
             stereoLow = Biquad.lowPass(profile.getUpmixBassCutoffHz(), BUTTERWORTH_Q);
+            frontLow=Biquad.lowPass(profile.getFrontCutoffHz(),BUTTERWORTH_Q);
+            frontHigh=Biquad.highPass(profile.getFrontCutoffHz(),BUTTERWORTH_Q);
+            lfeSubsonic=Biquad.highPass(profile.getLfeSubsonicHz(),BUTTERWORTH_Q);
         }
     }
 }

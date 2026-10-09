@@ -28,7 +28,15 @@ Somente recursos ativos entram na conta. No perfil inicial, a soma positiva é 2
 
 ## Grafo e modos de entrada
 
-O grafo aplica: upmix explícito → crossover surround → cópia central opcional → delays individuais → margem LFE → EQ LFE → trims/master/mute → clamp. O grave copiado é somado **antes dos delays**, seguindo o atraso do LFE. A central original mantém sua faixa completa. Os filtros são causais e alteram fase; delay explícito zero não elimina a fase dos filtros.
+Na **0.5.0**, o grafo completo passa a ser: upmix para entrada real de dois canais → LR4 surrounds → LR4 opcional de FL/FR/FC → cópia central opcional somente sem crossover frontal → delays → margem/EQ LFE → subsônico opcional LFE → trims/master/mute → clamp. A troca FC/LFE é feita depois pelo roteador USB; arquivos exportados e medidores mantêm FL FR FC LFE SL SR.
+
+Os novos campos `frontCrossoverEnabled`, `frontCutoffHz` (40–160 Hz, padrão 90), `frontBassSend` (0–1), `lfeSubsonicEnabled`, `lfeSubsonicHz` (10–40 Hz, padrão 20) e `swapCenterLfe` persistem com fallback legado desligado. O LR4 frontal retira graves das três caixas e os soma antes dos delays ao LFE. Quando ativo, a cópia antiga dos graves da central é ignorada para evitar somá-los duas vezes. O subsônico é um passa-altas Butterworth de segunda ordem, não um limitador.
+
+A margem automática usa o limite da soma: `1 + 2*envioSurround + 3*envioFrontal + envioCentral`, contando só rotas ligadas e sem duplicar a central. Ambos os crossovers com envio 1 e EQ desligado resultam em 1/6 no LFE. Ganhos positivos do EQ ainda reduzem a margem. Isso pode deixar o sub baixo; calibrar conscientemente, sem remover a proteção como substituto de medir níveis.
+
+No laboratório de arquivos, `forSourceChannels` usa **metadados reais do PCM decodificado**: 1/2 → upmix; 6 → nativo; outros formatos são rejeitados. Não depende de energia/silêncio nem do nome do codec. Mesmo um perfil estéreo não remixa um WAV/AC-3 decodificado com seis canais. No serviço USB PCM, o modo continua explícito e o formato deve corresponder; a captura IEC61937 comprimida ainda exige o backend dedicado.
+
+O grafo anterior (0.4.0) aplicava: upmix explícito → crossover surround → cópia central opcional → delays individuais → margem LFE → EQ LFE → trims/master/mute → clamp. O grave copiado é somado **antes dos delays**, seguindo o atraso do LFE. A central original mantém sua faixa completa. Os filtros são causais e alteram fase; delay explícito zero não elimina a fase dos filtros.
 
 `NATIVE_5_1` exige seis canais. Uma cena 5.1 que deixe FC/LFE/surrounds silenciosos continua preservada. `STEREO_UPMIX` exige dois canais e usa FL=L, FR=R, FC=0,5L+0,5R, SL=0,5L, SR=0,5R e LFE=LR4LP120(0,25L+0,25R). Não há detector de atividade, piso de silêncio, grace period ou fade de decisão. A matriz distribui estéreo, sem recriar canais nativos ausentes.
 
@@ -44,7 +52,7 @@ O editor importa/exporta JSON e o armazenamento normaliza um perfil ativo nas pr
 
 ## Arquivos e decodificador
 
-O laboratório aceita RIFF/WAV PCM16 ou float32, a 48 kHz, com 1, 2 ou 6 canais. Aceita layouts extensible frontal estéreo e 5.1 com o par surround back ou side. Mono é duplicado para L/R somente quando o usuário escolhe Upmix; WAV 5.1 exige o modo nativo. Arquivos com outra taxa, mapa incompatível, truncamento ou PCM não finito são rejeitados. O núcleo DSP também tem proteção para entradas não finitas, independente dessa validação de arquivos.
+O laboratório aceita RIFF/WAV PCM16 ou float32, a 48 kHz, com 1, 2 ou 6 canais. Aceita layouts extensible frontal estéreo e 5.1 com o par surround back ou side. Desde a 0.5.0, mono é duplicado para L/R e processado em upmix; WAV/AC-3 decodificado em seis canais resolve o modo nativo automaticamente, conservando os demais ajustes do perfil. Arquivos com outra taxa, mapa incompatível, truncamento ou PCM não finito são rejeitados. O núcleo DSP também tem proteção para entradas não finitas, independente dessa validação de arquivos.
 
 A exportação gera WAV float32 de seis canais. O laboratório acrescenta silêncio até o maior delay do perfil para descarregar os atrasos. A cauda IIR posterior a esse limite não é exportada, e o relatório informa essa política. O tempo de processamento de um arquivo é medido como tempo de parede; não é percentual de CPU nem latência física.
 

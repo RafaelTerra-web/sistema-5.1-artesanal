@@ -526,6 +526,7 @@ public final class UsbAudioService extends Service {
                     }
                 }
                 intervalSamples += frames;
+                br.com.sistema51.a34.usb.UsbChannelRouter.mapInPlace(output,frames,engine.getAppliedProfile().isSwapCenterLfe());
                 int written = 0;
                 boolean writeWaitCounted = false;
                 long writeDeadline = android.os.SystemClock.elapsedRealtime() + IO_TIMEOUT_MS;

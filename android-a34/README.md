@@ -1,8 +1,10 @@
 # Sistema 5.1 — aplicativo do A34
 
-Versão **0.4.0**, atualizada em **09/10/2026**. Aplicativo Android real com painel, edição do perfil, DSP, bancada de arquivos e diagnóstico USB. O histórico de validação no Galaxy A34 `SM-A346M`, Android 14, está nos relatórios abaixo. A CM6206 real foi reconhecida pelo telefone em testes anteriores usando um adaptador USB-A fêmea/USB-C macho OTG, sem hub alimentado.
+Versão atual **0.5.0**: crossover LR4 opcional de FL/FR/FC, filtro subsônico LFE e troca FC/LFE apenas na saída USB para a central conectada no R. O laboratório decide pelo número real de canais decodificados: 1/2 usam upmix; 6 permanecem nativos, inclusive quando o perfil selecionado era estéreo. O serviço USB PCM ainda exige modo e formato explicitamente compatíveis; a captura óptica comprimida continua pendente. Novos controles ficam desligados na migração para conservar perfis existentes.
 
-O upmix agora tem controles de central, surrounds, graves, separação e corte, com presets **Preencher caixas** e **Ambiência**. No modo Ambiência, informação idêntica em L/R fica fora das traseiras; conteúdo estéreo com diferenças pode permanecer nelas. Perfis antigos conservam a matriz anterior. Selecione **Upmix estéreo** para aplicar a matriz; os presets não alteram master, trims, atrasos ou EQ. Veja [o relatório consolidado](../docs/PROGRESSO-A34-E-UPMIX-2026-10-09.md).
+Versão **0.5.0**, atualizada em **09/10/2026**. Aplicativo Android real com painel, edição do perfil, DSP, bancada de arquivos e diagnóstico USB. O histórico de validação no Galaxy A34 `SM-A346M`, Android 14, está nos relatórios abaixo. A CM6206 real foi reconhecida pelo telefone em testes anteriores usando um adaptador USB-A fêmea/USB-C macho OTG, sem hub alimentado.
+
+O upmix agora tem controles de central, surrounds, graves, separação e corte, com presets **Preencher caixas** e **Ambiência**. No modo Ambiência, informação idêntica em L/R fica fora das traseiras; conteúdo estéreo com diferenças pode permanecer nelas. Perfis antigos conservam a matriz anterior. Na sessão PCM USB, selecione **Upmix estéreo** somente para uma entrada conhecida como estéreo; no laboratório, a decisão usa os canais decodificados; os presets não alteram master, trims, atrasos ou EQ. Veja [o relatório consolidado](../docs/PROGRESSO-A34-E-UPMIX-2026-10-09.md).
 
 Nesta versão, o estado USB é consultado em segundo plano, o perfil é salvo sem I/O síncrono na tela e a criação/parada do áudio usam uma fila de controle separada. A captura e a escrita têm tempo limite e buffers reutilizados. As abas preservam rolagem; os diagnósticos são resumidos com detalhes expansíveis.
 
@@ -23,7 +25,7 @@ Nesta versão, o estado USB é consultado em segundo plano, o perfil é salvo se
 
 ## Usar no A34
 
-Abra **Sistema 5.1 · A34**. A aba **Diagnóstico** permite rodar o autoteste e selecionar um arquivo. Escolha **Preservar 5.1** para arquivos de seis canais; escolha **Upmix estéreo** para mono/estéreo. O teste grava um WAV, sem tocar as caixas. **Exportar áudio** salva esse resultado pelo seletor Android.
+Abra **Sistema 5.1 · A34**. A aba **Diagnóstico** permite rodar o autoteste e selecionar um arquivo. O laboratório escolhe pelo formato decodificado: preserva seis canais e aplica upmix a mono/estéreo. O modo do perfil continua explícito para o serviço USB PCM. O teste grava um WAV, sem tocar as caixas. **Exportar áudio** salva esse resultado pelo seletor Android.
 
 Em **Perfil**, ajuste delays, trims, cortes, EQ e margem. O padrão conserva a calibração como referência inicial, volume mestre de 4% e cópia da central desativada. A margem LFE automática começa ligada; isso difere intencionalmente do antigo preset com reforços positivos e AutoHeadroom desligado. Os valores físicos precisam de nova medição na rota final.
 
@@ -42,7 +44,7 @@ No Android Studio, abra esta pasta. No Windows:
 
 Ou use `gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug` com o JDK configurado. No Linux/macOS: `sh gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug`.
 
-O script copia o APK para `artifacts/sistema51-a34-0.4.0-debug.apk`. A atualização por `adb install -r` conserva os dados se mantiver pacote e assinatura. O APK debug usa a chave de desenvolvimento local; para distribuir uma versão de produção será necessária assinatura própria. Chaves, `local.properties`, APKs, builds e resultados locais são ignorados pelo Git.
+O script copia o APK para `artifacts/sistema51-a34-0.5.0-debug.apk`. A atualização por `adb install -r` conserva os dados se mantiver pacote e assinatura. O APK debug usa a chave de desenvolvimento local; para distribuir uma versão de produção será necessária assinatura própria. Chaves, `local.properties`, APKs, builds e resultados locais são ignorados pelo Git.
 
 Para comparar o DSP do **APK instalado** com mpv no PC:
 
@@ -55,7 +57,7 @@ Os scripts coletam somente os arquivos de teste que o próprio app produziu. A c
 
 ## Validação desta versão
 
-A 0.4.0 passou compilação, 18 casos JUnit (incluindo cinco propriedades do upmix e cinco casos do guard analógico), e lint com zero erros/17 avisos. Os resultados da instrumentação no A34 e o alcance de cada teste estão no [relatório de progresso](../docs/PROGRESSO-A34-E-UPMIX-2026-10-09.md). O guard `Cm6206AnalogDriver` é uma base independente do transporte; ainda não está ligado ao HID Android nem ao serviço PCM.
+A 0.5.0 passou compilação, 25 casos JUnit (incluindo preservação nativa, crossover frontal/subsônico, roteamento e guard analógico), e lint com zero erros/17 avisos. Os resultados da instrumentação no A34 e o alcance de cada teste estão no [relatório de progresso](../docs/PROGRESSO-A34-E-UPMIX-2026-10-09.md). O guard `Cm6206AnalogDriver` é uma base independente do transporte; ainda não está ligado ao HID Android nem ao serviço PCM.
 
 Resultados anteriores, dos quais a nova versão conserva o núcleo:
 

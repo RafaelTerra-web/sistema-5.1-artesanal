@@ -39,8 +39,8 @@ public final class OfflineLab {
         long blocks=0,totalNs=0,maxNs=0,inputFrames=0;int tail=0;for(int c=0;c<6;c++)tail=Math.max(tail,profile.isBypass()?0:profile.getDelaySamples(c));
         float[] input=new float[480*6],processed=new float[480*6];
         try(WavIO.Reader reader=new WavIO.Reader(source);WavIO.Writer writer=new WavIO.Writer(output,6)){
-            if(profile.getInputMode()==AudioProfile.InputMode.NATIVE_5_1&&reader.channels!=6)throw new IOException("Arquivo mono/estéreo: selecione o modo Upmix estéreo no perfil.");
-            if(profile.getInputMode()==AudioProfile.InputMode.STEREO_UPMIX&&reader.channels==6)throw new IOException("Arquivo 5.1: selecione Preservar 5.1 no perfil.");
+            String requestedMode=profile.getInputMode().name();
+            profile=profile.forSourceChannels(reader.channels);engine.setProfile(profile);
             float[] monoStereo=reader.channels==1?new float[480*2]:null;
             int processingChannels=reader.channels==1?2:reader.channels;
             int count;while((count=reader.readFrames(input,480))>0){
@@ -53,6 +53,7 @@ public final class OfflineLab {
             JSONArray peaks=new JSONArray();for(int c=0;c<6;c++)peaks.put(engine.getChannelPeak(c));
             return new JSONObject().put("ok",true).put("kind","offline_dsp").put("inputFrames",inputFrames).put("outputFrames",writer.frames())
                     .put("tailFrames",tail).put("sampleRate",48000).put("channels",6).put("inputChannels",reader.channels)
+                    .put("inputModeDecision","decoded_channel_count").put("requestedInputMode",requestedMode)
                     .put("blocks",blocks).put("processingWallMs",totalNs/1000000.0).put("maxProcessingBlockMs",maxNs/1000000.0)
                     .put("clippedSamples",engine.getClippedSamples()).put("nonFiniteInputSamples",engine.getNonFiniteInputSamples()).put("lastBlockPeaks",peaks)
                     .put("profile",ProfileStore.toJson(profile,"Arquivo"))

@@ -474,10 +474,17 @@ public final class MainActivity extends Activity {
 
         LinearLayout bass = card();
         heading(bass, "Gerenciamento de graves", "As cópias de graves são somadas ao LFE. A margem evita ganho excessivo.");
+        addToggle(bass,"Trocar CEN/BASS na saída USB","Para central na saída R do módulo: troca apenas os slots enviados à placa.","swapCenterLfe",false);
+        addToggle(bass,"Crossover frontais e central","Retira graves de FL/FR/FC e envia ao LFE, antes dos atrasos.","frontCrossoverEnabled",false);
+        addSlider(bass,"Corte frontais/central",(float)profile.optDouble("frontCutoffHz",90),40,160,1,"Hz",v->{put("frontCutoffHz",v);changed();});
+        addSlider(bass,"Envio frontais/central → LFE",linearToDb(profile.optDouble("frontBassSend",1)),-24,0,.5f,"dB",v->{put("frontBassSend",dbToLinear(v));changed();});
+        addToggle(bass,"Filtro subsônico no LFE","Reduz infragraves abaixo do corte; não limita potência do amplificador.","lfeSubsonicEnabled",false);
+        addSlider(bass,"Corte subsônico",(float)profile.optDouble("lfeSubsonicHz",20),10,40,1,"Hz",v->{put("lfeSubsonicHz",v);changed();});
         addToggle(bass, "Crossover dos surrounds", "Passa-altas em SL/SR; envia graves ao subwoofer.", "surroundCrossoverEnabled", true);
         addSlider(bass, "Corte dos surrounds", (float) profile.optDouble("surroundCutoffHz", 90), 40, 120, 1, "Hz", value -> { put("surroundCutoffHz", value); changed(); });
         addSlider(bass, "Envio surround → LFE", linearToDb(profile.optDouble("surroundBassSend", 1)), -24, 0, .5f, "dB", value -> { put("surroundBassSend", dbToLinear(value)); changed(); });
         addToggle(bass, "Copiar graves da central", "Mantém a central inteira e copia o passa-baixas para LFE.", "centerBassCopyEnabled", false);
+        bass.addView(text("Com o crossover frontal ativo, a cópia separada da central é ignorada para não somar os mesmos graves duas vezes.",12,MUTED));
         addSlider(bass, "Corte da central", (float) profile.optDouble("centerBassCutoffHz", 120), 40, 120, 1, "Hz", value -> { put("centerBassCutoffHz", value); changed(); });
         addSlider(bass, "Envio central → LFE", linearToDb(profile.optDouble("centerBassSend", 1)), -24, 0, .5f, "dB", value -> { put("centerBassSend", dbToLinear(value)); changed(); });
         addToggle(bass, "Margem automática no LFE", "Reduz o nível pelo pior caso da soma de graves e boosts do EQ.", "automaticLfeHeadroom", true);

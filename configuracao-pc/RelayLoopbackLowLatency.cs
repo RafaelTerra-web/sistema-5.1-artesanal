@@ -531,6 +531,36 @@ public static class RelayLoopbackLowLatency
             " mode=" + mode);
     }
 
+    /// Read-only format preflight, without initializing capture or starting a player.
+    public static void VerifySourceFormat(string endpointId)
+    {
+        IRelayMMDeviceEnumerator enumerator = null;
+        IRelayMMDevice device = null;
+        IRelayAudioClient client = null;
+        IntPtr clientPointer = IntPtr.Zero, format = IntPtr.Zero;
+        try
+        {
+            enumerator = (IRelayMMDeviceEnumerator)new RelayMMDeviceEnumeratorClass();
+            Require(enumerator.GetDevice(endpointId, out device), "Preflight GetDevice");
+            int state;
+            Require(device.GetState(out state), "Preflight GetState");
+            if (state != 1) throw new InvalidOperationException("Capture source is not active");
+            Guid iid = AudioClientId;
+            Require(device.Activate(ref iid, 23, IntPtr.Zero, out clientPointer), "Preflight Activate");
+            client = (IRelayAudioClient)Marshal.GetTypedObjectForIUnknown(clientPointer, typeof(IRelayAudioClient));
+            Require(client.GetMixFormat(out format), "Preflight GetMixFormat");
+            VerifyMixFormat(format);
+        }
+        finally
+        {
+            if (format != IntPtr.Zero) Marshal.FreeCoTaskMem(format);
+            if (client != null) Marshal.ReleaseComObject(client);
+            if (clientPointer != IntPtr.Zero) Marshal.Release(clientPointer);
+            if (device != null) Marshal.ReleaseComObject(device);
+            if (enumerator != null) Marshal.ReleaseComObject(enumerator);
+        }
+    }
+
     public static void Run(string endpointId, string mpvPath, string configPath, string logPath, string stopFile)
     {
         if (String.IsNullOrWhiteSpace(endpointId) || String.IsNullOrWhiteSpace(mpvPath) ||
@@ -543,6 +573,11 @@ public static class RelayLoopbackLowLatency
 
         State state = new State();
         state.LastCaptureTimestamp = Stopwatch.GetTimestamp();
+        string directory = Path.GetDirectoryName(logPath);
+        string nativeModeFile = Path.Combine(directory, "audio-sistema.nativo");
+        string nativeTestFile = Path.Combine(directory, "audio-sistema.teste-nativo");
+        state.ForceNative = File.Exists(nativeModeFile) ||
+            (File.Exists(nativeTestFile) && DateTime.UtcNow - File.GetLastWriteTimeUtc(nativeTestFile) < TimeSpan.FromMinutes(5));
         Process player = null;
         Thread captureThread = null;
         Thread writerThread = null;
@@ -573,9 +608,6 @@ public static class RelayLoopbackLowLatency
             Log(logPath, "running endpoint=" + endpointId + " mpvPid=" + player.Id +
                 " format=WAV/6ch/48000/float32/mask0x3F queueMaxMs=80 threadPriority=AboveNormal");
 
-            string directory = Path.GetDirectoryName(logPath);
-            string nativeModeFile = Path.Combine(directory, "audio-sistema.nativo");
-            string nativeTestFile = Path.Combine(directory, "audio-sistema.teste-nativo");
             Stopwatch clock = Stopwatch.StartNew();
             long nextLogMs = 1000;
             while (!File.Exists(stopFile) && !player.HasExited && state.GetError() == null)

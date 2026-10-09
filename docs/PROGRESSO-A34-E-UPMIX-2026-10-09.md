@@ -1,5 +1,31 @@
 # Progresso consolidado: CM6206, Sony, upmix e Galaxy A34
 
+## Atualização 0.5.0: fonte nativa, graves e central no R
+
+Esta atualização sucede o registro 0.4.0 abaixo. O usuário voltou a relatar graves distorcidos nas frontais depois da confirmação inicial de “limpo”; aquela escuta não encerrou a calibração. Após fechar o FxSound, a bancada PCM com corte de graves melhorou as frontais. Confirmou surrounds audíveis e sub baixo, com central ausente. Informou que a **central está no R** do módulo CEN/BASS: trocar FC/LFE somente na saída física e acompanhar a troca nos ganhos do driver. O par surround físico continua aberto.
+
+As Estatísticas para nerds mostraram `ec-3 (328)` no Opera para [o vídeo informado](https://youtu.be/nLT8nu-BY6s). [Dolby](https://ott.dolby.com/OnDelKits/DDP/Dolby_Digital_Plus_Online_Delivery_Kit_v1.5/Documentation/Content_Creation/SDM/help_files/topics/ddp_mpeg_dash_c_mpd_adaptation.html) identifica `ec-3` como Dolby Digital Plus/E-AC-3. Não assumir que YouTube/Opera entrega sempre estéreo. O codec recebido não comprova canais PCM negociados ou passthrough HDMI. Esta fonte permanece Native enquanto se verifica a cadeia, sem upmix por silêncio/atividade.
+
+Os oito controles de volume da CM coexistiam com MixFormat WASAPI estéreo. Backups locais foram salvos; formato/configuração foram alterados para oito canais e lidos como float32/48 kHz/máscara 0x63F, padrão PCM16/48 kHz/oito canais. O VB-CABLE da bancada tem seis canais. Atualizar o vídeo para renegociar; sinal apenas em FL/FR não autoriza fabricar canais de uma fonte 5.1.
+
+O [protótipo PCM](PC-CM6206-PCM.md) retira graves das cinco caixas com LR4 a 90 Hz, soma ao LFE com margem 1/6 e subsônico 20 Hz, reduz ganho e permite swap FC/LFE. Testes em arquivos passaram em Native/Stereo e mapas normal/trocado. O vídeo testa baixas frequências, atenuadas pelo crossover nos satélites; não basta para identificar a central. A duplicação de surrounds nos dois pares USB é provisória.
+
+A primeira bancada executou em janelas curtas sem quedas de fila, mas com uma descontinuidade inicial e captura Native só em FL/FR. As tentativas Native posteriores falharam na abertura USB. O gerenciador Dolby antigo também estava rodando; foi parado e agora o script rejeita essa concorrência. O erro persistiu: `AUDCLNT_E_DEVICE_INVALIDATED` e parada por stdin bloqueado. Após reconexão USB, PnP apareceu OK, mas leitura HID falhou com dispositivo não funcionando. **Ainda não houve aprovação da nova reprodução nativa de seis canais.** Essa bancada PC→USB é distinta do teste anterior HDMI→TV→óptica.
+
+### Android 0.5.0 e resultados
+
+- **0.5.0/versionCode 5** instalada por ADB no SM-A346M/Android 14, conservando dados. Novos controles continuam desligados no perfil anterior; disponibilidade no APK não significa aplicação ao hardware.
+- LR4 opcional de FL/FR/FC, envio ao LFE antes dos delays e supressão da cópia antiga da central quando o crossover frontal está ativo. Subsônico Butterworth opcional no LFE. Margem automática conta todas as somas; cinco satélites/envios 1 e EQ desligado resultam em 1/6.
+- Roteador USB troca FC/LFE depois do DSP/medidores, usando o perfil efetivamente aplicado ao bloco. Exports WAV conservam a ordem lógica. Função pura testada; mapa físico Android ainda não ouvido.
+- Laboratório decide pelo PCM decodificado: 1/2 → upmix; 6 → nativo. Instrumentação confirmou `decoded51Protected=true`: fonte AC-3 decodificada em seis canais, mesmo com perfil estéreo/swap, gerou WAV idêntico ao perfil nativo. `fileChannelOrderLogical=true`.
+- Compilação, **25 casos JUnit** e lint passaram: zero falhas/erros, 17 avisos. Inclui quatro testes novos de crossover/subsônico e dois de roteamento. Aceitação engloba 11 cenários/1.251.095 verificações. Instrumentação no telefone: código 0, `ok=true`, sem reprodução/captura.
+- Nova gestão de graves no A34: **431.616 frames**, zero amostras clipadas, processamento total 349,03 ms, maior bloco 3,626 ms. Comparação independente com mpv do mesmo PCM: comprimento completo, erro máximo **3,73e-9**, menor SNR **146,92 dB**. Equivalência de DSP em arquivo; exclui decoder e USB.
+- Perfil anterior também comparado: **435.302 frames** com cauda, erro máximo 3,73e-9, menor SNR 147,05 dB. Decoder Samsung ainda perdeu **1.536 frames** frente ao AC-3 sintético: `fidelityValidated=false`; não aprovar transparência/gapless.
+
+Próxima ordem: recuperar sessão USB; confirmar seis posições PCM nativas e central no R; identificar REAR; calibrar ganhos/atrasos; integrar HID/journal Android; implementar transporte IEC61937/decoder controlado; validar simultaneidade, relógios e sessão longa no A34 com hub PD. O telefone ligado por ADB executou testes de arquivos; a CM permaneceu no PC. A cadeia óptica Android completa não foi validada nesta atualização.
+
+## Registro anterior: 0.4.0
+
 Atualizado em 09/10/2026, após os testes de bancada e a instalação Android **0.4.0**. Este é o resumo atual; relatórios anteriores preservam condições e tentativas de cada etapa. O [registro de comunicação](CM6206-COMUNICACAO-2026-10-09.md) detalha os ensaios Windows. Os [planos originais](A34-DESENVOLVIMENTO-E-VALIDACAO.md) continuam como roteiro, com implementação e pendências atualizadas aqui.
 
 ## Evidências e limites
@@ -105,3 +131,5 @@ O CI Android publicado também passou no GitHub após incluir preparação expl�
 - [Validação anterior](../android-a34/docs/VALIDACAO-2026-10-08.md), [USB](../android-a34/docs/USB-E-VALIDACAO.md), [otimizações](../android-a34/docs/OTIMIZACOES-E-PROTECAO-2026-10-09.md), [teste óptico inicial](../android-a34/docs/TESTE-OPTICO-2026-10-09.md), [manutenção sem fio](A34-MANUTENCAO-SEM-FIO.md), [publicação](PUBLICACAO.md).
 
 O conhecimento publicado é síntese técnica dos testes e da escuta relatada, distinguindo ambos. Credenciais, serial ADB, pareamentos, dados de conta e gravações de terceiros ficam fora da publicação.
+
+Atualização da recuperação: restaurados formato padrão estéreo e máscaras originais a partir do backup. A tentativa de saída exclusiva de oito canais continuou falhando com `0x80070001`, embora IsFormatSupported aceitasse o formato. A leitura HID permaneceu com erro. Solicitado retirar a óptica temporariamente e usar outra porta USB para isolar a condição física. O formato padrão atual voltou a dois canais; isso não altera o grafo Native de seis canais, mas a nova sessão USB ainda não abriu.

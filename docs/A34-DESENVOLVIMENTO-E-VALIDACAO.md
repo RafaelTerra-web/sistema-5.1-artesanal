@@ -6,6 +6,8 @@ Plano aprovado em 05/10/2026. A arquitetura e as condições físicas estão em 
 
 ### Situação em 09/10/2026
 
+Atualização **0.5.0**, instalada no SM-A346M/Android 14: crossover frontal/central, subsônico LFE e troca FC/LFE física. Compilação, 25 casos JUnit e lint passaram; instrumentação no telefone protege os seis canais decodificados contra upmix e conserva a ordem lógica no WAV. A nova gestão de graves comparou 431.616 frames com mpv, erro máximo 3,73e-9 e menor SNR 146,92 dB. Esses resultados são de arquivos; ainda faltam HID integrado, captura IEC61937, mapa físico e sessão óptica contínua no telefone. Veja a atualização 0.5.0 no [relatório consolidado](PROGRESSO-A34-E-UPMIX-2026-10-09.md).
+
 O plano passou a ter implementação Java Android em `android-a34/`, incluindo motor DSP, painel, perfis, arquivos AC-3/WAV, serviço PCM USB e diagnósticos. Kotlin/C++/FFmpeg abaixo eram escolhas propostas, não exigências de linguagem; o transporte AC-3 ao vivo continua sem backend. A versão 0.4.0 acrescenta upmix ajustável e preserva o 5.1 nativo. O [relatório consolidado](PROGRESSO-A34-E-UPMIX-2026-10-09.md) separa testes no PC, testes no aparelho e escuta física, além de priorizar o trabalho restante.
 
 Na bancada Windows, foram recebidos seis canais AC-3 pela Sony e confirmadas as seis caixas em saída USB direta. A habilitação de REG2.DRIVERON foi necessária para abrir as saídas analógicas. Isso substitui a condição antiga de “aguardar a interface”, mas não aprova a mesma inicialização no Android, o mapeamento definitivo nem a captura óptica no telefone.
