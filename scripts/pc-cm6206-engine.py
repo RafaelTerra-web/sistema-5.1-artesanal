@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,16 +27,66 @@ def read_json(path):
 
 def save_json(path, data):
     path = Path(path)
-    temporary = path.with_name(path.name + '.tmp')
-    with temporary.open('w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(temporary, path)
+    fd,name=tempfile.mkstemp(prefix=path.name+'.',suffix='.tmp',dir=path.parent)
+    temporary=Path(name)
+    try:
+        with os.fdopen(fd,'w',encoding='utf-8') as f:
+            json.dump(data,f,ensure_ascii=False,indent=2)
+            f.flush();os.fsync(f.fileno())
+        for attempt in range(12):
+            try: os.replace(temporary,path);return
+            except PermissionError:
+                if attempt==11:raise
+                time.sleep(.025)
+    finally:
+        try:temporary.unlink(missing_ok=True)
+        except OSError:pass
 
 
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def routing_applications(cfg, items):
+    """Explicit process names plus known active media apps; never the DSP."""
+    configured = cfg.get('Applications', [cfg.get('Application', 'opera.exe')])
+    if not isinstance(configured, list):
+        raise ValueError('Applications deve ser uma lista de nomes de processos .exe.')
+    banned = {'mpv.exe', 'powershell.exe', 'pwsh.exe', 'python.exe', 'pythonw.exe',
+              'fxsound.exe', 'audiodg.exe', 'dsp.exe'}
+    applications = []
+    for value in configured:
+        if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9_.-]+\.exe', value, re.I):
+            raise ValueError('Use somente nomes de processos .exe em Applications.')
+        value = value.lower()
+        if value in banned:
+            raise ValueError('O renderer/DSP não pode alimentar o próprio loopback: '+value)
+        if value not in applications:
+            applications.append(value)
+    if cfg.get('DiscoverActiveApplications', True):
+        known = {'opera.exe', 'msedge.exe', 'chrome.exe', 'spotify.exe', 'vlc.exe'}
+        for item in items:
+            if item.get('Direction') != 'Render' or item.get('Device State') != 'Active':
+                continue
+            process = str(item.get('Process Path', '')).replace('\\', '/').rsplit('/', 1)[-1].lower()
+            if process in known and process not in applications:
+                applications.append(process)
+    return applications
+
+
+def observed_app_endpoints(items, application):
+    """Effective sessions are evidence, not a backup of Windows app policy."""
+    matches = [x for x in items if x.get('Direction') == 'Render' and
+               str(x.get('Process Path', '')).replace('\\', '/').rsplit('/', 1)[-1].lower() == application]
+    active = [x for x in matches if x.get('Device State') == 'Active']
+    if active:
+        matches = active
+    endpoints = set()
+    for item in matches:
+        found = re.match(r'^\{0\.0\.0\.00000000\}\.\{[0-9a-fA-F-]{36}\}', str(item.get('Item ID', '')))
+        if found:
+            endpoints.add(found.group(0).lower())
+    return endpoints
 
 
 class MpvIpcUnavailable(RuntimeError):
@@ -88,6 +139,7 @@ class Session:
         self.children = []
         self.routes = None
         self.hid = None
+        self.native_guard = None
         self.original = None
         self.restore_needed = False
         self.journal = self.run/'hid-journal.json'
@@ -99,7 +151,12 @@ class Session:
 
     def publish(self, **fields):
         self.state.update(fields, AtualizadoEm=utc_now())
-        save_json(self.state_path, self.state)
+        try:save_json(self.state_path,self.state)
+        except OSError as error:
+            # A dashboard reader can briefly deny rename on Windows. It must
+            # never terminate the audio session. Stale-state checks protect UI.
+            with (self.run/'status-write-errors.log').open('a',encoding='utf-8') as log:
+                log.write(utc_now()+' '+str(error)+'\n')
 
     def volume_tool(self, *args):
         subprocess.run([self.cfg['SoundVolumeViewPath'], *map(str, args)],
@@ -119,15 +176,48 @@ class Session:
         fallback = self.cfg.get('FallbackEndpointId', self.cfg.get('HdmiEndpointId'))
         source = self.cfg['CaptureEndpointId']
         self.routes = {'console': fallback if console == source else console,
-                       'multimedia': fallback if multimedia == source else multimedia}
+                       'multimedia': fallback if multimedia == source else multimedia,
+                       'applications': []}
+        warnings = list(self.state.get('RouteWarnings', []))
+        for application in routing_applications(self.cfg, items):
+            endpoints = observed_app_endpoints(items, application)
+            previous = next(iter(endpoints)) if len(endpoints) == 1 else None
+            # Session evidence cannot recover the persisted Windows app policy.
+            self.routes['applications'].append({'process': application,
+                'previousObservedEndpoint': previous, 'preferenceKnown': False,
+                'routed': False, 'backupKind': 'effective_session_only'})
+            warnings.append(application+': preferência anterior por aplicativo não recuperada; '
+                            'restauração usa a sessão observada ou o padrão, somente se a rota ainda for nossa.')
+        self.state['RouteWarnings'] = warnings
+        self.state['RoutedApplications'] = [x['process'] for x in self.routes['applications']]
         save_json(self.run/'restore-routes.json', self.routes)
         if self.state['Modo'] == 'Pcm' or self.cfg.get('EncodePcToHdmi', True):
             self.volume_tool('/SetDefault', source, 0)
             self.volume_tool('/SetDefault', source, 1)
-            self.volume_tool('/SetAppDefault', source, 0, self.cfg.get('Application', 'opera.exe'))
-            self.volume_tool('/SetAppDefault', source, 1, self.cfg.get('Application', 'opera.exe'))
+            for entry in self.routes['applications']:
+                # Write ownership before mutation, including a partial pair.
+                entry['routed'] = True
+                save_json(self.run/'restore-routes.json', self.routes)
+                self.volume_tool('/SetAppDefault', source, 0, entry['process'])
+                self.volume_tool('/SetAppDefault', source, 1, entry['process'])
 
     def analog_on(self):
+        if self.cfg.get('UseNativeHidGuard', True):
+            args=['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'scripts/pc-cm6206-analog.ps1'),
+                  '-StopPath',str(self.run/'analog.stop'),'-StatusPath',str(self.run/'analog-status.json'),
+                  '-JournalPath',str(self.run/'native-hid-journal.json')]
+            with (self.run/'analog-console.txt').open('wb') as stdout, (self.run/'analog-errors.txt').open('wb') as stderr:
+                self.native_guard=subprocess.Popen(args,stdout=stdout,stderr=stderr,creationflags=NO_WINDOW)
+            deadline=time.monotonic()+8
+            while time.monotonic()<deadline:
+                try:
+                    status=read_json(self.run/'analog-status.json')
+                    if status.get('Ready') and status.get('Status') == 'held' and status.get('Pid') == self.native_guard.pid: return
+                    if status.get('Error'): raise RuntimeError(status['Error'])
+                except FileNotFoundError: pass
+                if self.native_guard.poll() is not None: raise RuntimeError('Controle HID nativo encerrou antes da confirmação.')
+                time.sleep(.1)
+            raise TimeoutError('Controle HID nativo não confirmou DRIVERON em oito segundos.')
         import hid
         spec = importlib.util.spec_from_file_location('cm6206_analog', ROOT/'scripts/optical-tests/test-analog-driver.py')
         self.helpers = importlib.util.module_from_spec(spec)
@@ -186,6 +276,8 @@ class Session:
             raise RuntimeError('São necessários seis atrasos inteiros válidos em amostras.')
         delay_csv = ','.join(map(str, delays))
         self.state['DelaySamples'] = delays
+        self.state['LfeTrimDb'] = self.cfg.get('LfeTrimDb',0)
+        self.state['CenterBassSend'] = self.cfg.get('CenterBassSend',1)
         self.state['AtrasosMs'] = self.cfg.get('RequestedDelaysMs',
             dict(zip(('FL','FR','CEN','LFE','SL','SR'), (76.8,76.8,5.8,5.8,71.0,71.0))))
         common = ['-MpvPath', self.cfg['MpvPath'], '-RenderEndpointId', self.cfg['RenderEndpointId']]
@@ -194,6 +286,7 @@ class Session:
                 '-CaptureEndpointId', self.cfg['CaptureEndpointId'], '-OutputDirectory', self.run,
                 '-InputMode', self.state['InputMode'], '-Gain', self.cfg['Gain'],
                 '-CenterTrimDb', self.cfg.get('CenterTrimDb', -12), '-DelaySamplesCsv', delay_csv,
+                '-LfeTrimDb', self.cfg.get('LfeTrimDb', 0), '-CenterBassSend', self.cfg.get('CenterBassSend', 1),
                 '-IpcPath', self.launch['IpcPath'], '-SkipRouting']
             if self.cfg.get('Shared', False): args += ['-Shared']
             if self.cfg.get('SwapCenterLfe', False): args += ['-SwapCenterLfe']
@@ -209,6 +302,7 @@ class Session:
                 '-CaptureEndpointId', self.cfg['CaptureEndpointId'], '-OutputDirectory', str(dsp_dir),
                 '-InputMode', 'Native', '-Gain', '1', '-DelaySamplesCsv', delay_csv,
                 '-CenterTrimDb', str(self.cfg.get('CenterTrimDb', -12)), '-SkipRouting', '-ValidateOnly']
+            prepare += ['-LfeTrimDb',str(self.cfg.get('LfeTrimDb',0)),'-CenterBassSend',str(self.cfg.get('CenterBassSend',1))]
             if self.cfg.get('SwapCenterLfe', False): prepare += ['-SwapCenterLfe']
             subprocess.run(list(map(str, prepare)), check=True, timeout=15,
                            capture_output=True, creationflags=NO_WINDOW)
@@ -282,6 +376,8 @@ class Session:
         ever_ready = False
         last_progress = time.monotonic()
         while not self.stop.exists():
+            if self.native_guard and self.native_guard.poll() is not None:
+                raise RuntimeError('O controle analógico nativo encerrou durante a reprodução.')
             for name, child in self.children:
                 if child.poll() is not None:
                     status_name = name+'-status.json'
@@ -380,6 +476,17 @@ class Session:
             finally:
                 try: self.hid.close()
                 except Exception as error: errors.append('HID close: '+str(error))
+        if self.native_guard:
+            if not workers_closed:
+                errors.append('Sessão de áudio não liberada; guard HID mantido e journal pendente.')
+            else:
+                try:
+                    (self.run/'analog.stop').write_text('stop',encoding='ascii')
+                    self.native_guard.wait(timeout=8)
+                    restored=read_json(self.run/'analog-status.json')
+                    if not restored.get('RestorationVerified'):
+                        raise RuntimeError(restored.get('Error') or 'Guard HID não confirmou a restauração.')
+                except Exception as error: errors.append('Guard HID: '+str(error))
         if self.routes:
             try:
                 snapshot = self.run/'routes-cleanup.json'
@@ -389,7 +496,20 @@ class Session:
                 for role, key, column in ((0, 'console', 'Default'), (1, 'multimedia', 'Default Multimedia')):
                     owned = any(x.get('Type') == 'Device' and x.get(column) == 'Render' and x.get('Item ID') == source for x in current)
                     if owned and self.routes[key]: self.volume_tool('/SetDefault', self.routes[key], role)
-                    self.volume_tool('/SetAppDefault', 'DefaultRenderDevice', role, self.cfg.get('Application', 'opera.exe'))
+                for entry in self.routes.get('applications', []):
+                    if not entry.get('routed'):
+                        continue
+                    observed = observed_app_endpoints(current, entry['process'])
+                    if observed != {source.lower()}:
+                        # Missing/changed/ambiguous sessions cannot prove that
+                        # the persisted preference is still owned by this run.
+                        self.state.setdefault('RouteWarnings', []).append(
+                            entry['process']+': restauração automática ignorada; rota atual não confirmada como nossa.')
+                        continue
+                    previous = entry.get('previousObservedEndpoint')
+                    target = previous if previous and previous != source.lower() else 'DefaultRenderDevice'
+                    for role in (0, 1):
+                        self.volume_tool('/SetAppDefault', target, role, entry['process'])
             except Exception as error: errors.append('Rota: '+str(error))
         if errors:
             raise RuntimeError('; '.join(errors))

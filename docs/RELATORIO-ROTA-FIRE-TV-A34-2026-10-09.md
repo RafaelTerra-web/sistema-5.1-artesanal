@@ -2,6 +2,8 @@
 
 Atualizado em 09/10/2026. **Estado: DSP em arquivos validado; rota óptica contínua ainda instável no PC; cadeia completa no A34 pendente.** Este relatório reúne requisitos, mapa e plano de implementação. Não é uma aprovação de funcionamento independente do PC.
 
+**Último estado:** upmix/PCM no PC restaurado e confirmado pelo usuário, com mestre 0,15, LFE +3 dB e envio central grave 50%. Começar pela [retomada do próximo chat](RETOMADA-PROXIMO-CHAT.md); ela distingue valores finais de ensaios históricos. A óptica não é a rota ativa aprovada nessa última confirmação.
+
 ## Montagem pretendida
 
 ```mermaid
@@ -20,7 +22,7 @@ flowchart LR
 
 O telefone assume captura, decodificação e processamento; a CM6206 converte o PCM processado nas saídas analógicas. A entrada e a saída USB trabalham simultaneamente na mesma placa. O hub precisa manter modo host e carregar o A34 nessa condição; presença de conector PD não comprova carga, compatibilidade ou estabilidade.
 
-**Diferença da bancada atual:** Opera → VB-CABLE → encoder PC → HDMI/Sony → óptica → CM → decoder/DSP PC → USB/CM. O Fire TV substitui o player e o encoder do PC; o A34 substitui captura, decoder e DSP. A extensão do Opera não participa da montagem final.
+**Diferença das bancadas:** a rota óptica experimental foi Opera → VB-CABLE → encoder PC → HDMI/Sony → óptica → CM → decoder/DSP PC → USB/CM. A rota recuperada ao final é Opera/extensão → VB-CABLE → DSP PC → USB/CM, sem passagem pela TV. Na montagem pretendida, o Fire TV substitui player/encoder PC e o A34 substitui captura/decoder/DSP. A extensão do Opera não participa da montagem final.
 
 ## Configurações e materiais
 
@@ -73,7 +75,7 @@ No PC, frontais distorciam em graves; o corte a 90 Hz melhorou a escuta. O ganho
 
 O volume do mpv usa escala cúbica; o gerenciador converte ganho linear por `100*cbrt(ganho)`. Não copiar “30%” do Windows para o A34 ou multiplicar duas vezes o mesmo ganho. Evitar escrever volumes de hardware da CM durante ensaios; leituras/escritas de controle apresentaram falhas intermitentes.
 
-No YouTube/Opera, o loopback pode mostrar seis slots mesmo para música estéreo. O núcleo antigo que fazia upmix por silêncio foi corrigido. Auto preserva entrada desconhecida; Stereo é override apenas de fonte confirmada. A extensão local usa a quantidade de canais na entrada de AudioWorklet antes do mixer: 1/2 → upmix, 6 → preservação. Passou 20 testes simulados, mas instalação/execução real no Opera continuam pendentes: Computer Use foi bloqueado por não confirmar a URL. Não contorna CORS/DRM nem faz passthrough de bitstream.
+No YouTube/Opera, o loopback pode mostrar seis slots mesmo para música estéreo. O núcleo antigo que fazia upmix por silêncio foi corrigido. Auto preserva entrada desconhecida; Stereo é override apenas de fonte não Dolby confirmada. A extensão evoluiu para decisão por codec/canais da origem: 53 testes isolados no pacote 0.2.1. O usuário instalou manualmente e confirmou a expansão audível; a versão efetivamente carregada em cada aba deve ser conferida. Computer Use havia sido bloqueado por não confirmar a URL. Não contorna CORS/DRM nem faz passthrough de bitstream.
 
 ## O que já foi provado e o que falhou
 
@@ -109,7 +111,7 @@ Sincronizar IEC61937, validar preâmbulos/tipo/comprimento/ordem de palavras e e
 
 Avaliar decoder ARM64 baseado em FFmpeg/libavcodec ou alternativa de licença compatível. Registrar build/licenças e distribuir de modo adequado. Comparar duração, ganho, ordem e priming com referência; resolver a perda de 1.536 frames observada no codec Samsung antes de aceitá-lo como backend final.
 
-Usar metadados do PCM produzido pelo decoder: mono/estéreo → upmix; 5.1 → preservar. Troca de formato limpa estados na fronteira adequada, sem deixar central/surrounds sintetizadas em uma fonte nativa. Formatos/layouts não suportados devem ficar explícitos. DD+/DTS não são suporte implícito por aceitar AC-3.
+Propagar codec original e layout até o DSP: AC-3/E-AC-3 → preservar inclusive mono/estéreo; mono/estéreo não Dolby confirmado → upmix; multicanal ou origem desconhecida → preservar. Só contar canais produzidos pelo decoder não atende à regra. Troca de formato limpa estados na fronteira adequada, sem deixar central/surrounds sintetizadas em uma fonte nativa. Formatos/layouts não suportados devem ficar explícitos. DD+/DTS não são suporte implícito por aceitar AC-3.
 
 ### 5. DSP, filas, relógios e saída
 
@@ -130,6 +132,22 @@ Perfil versionado com mapa e atrasos; APK assinado; dependências/licenças; gui
 Referências: [manual Sony usado na investigação](https://www.sony.com/electronics/support/res/manuals/W000/W0006624M.pdf), [CM6206](https://tehnoblog.org/downloads/cmedia/C-Media_CM-6206.pdf), [USB Android](https://developer.android.com/reference/android/hardware/usb/UsbDeviceConnection), [AudioFormat](https://developer.android.com/reference/android/media/AudioFormat), [WASAPI Initialize](https://learn.microsoft.com/pt-br/windows/win32/api/audioclient/nf-audioclient-iaudioclient-initialize), [relatório consolidado](PROGRESSO-A34-E-UPMIX-2026-10-09.md), [bancada PCM](PC-CM6206-PCM.md) e [receptor óptico](PC-CM6206-OPTICAL.md).
 
 ## Publicação e CI
+
+### Restauração PCM, regra por codec e equilíbrio manual
+
+O usuário priorizou restaurar a rota PCM antes do loop óptico. O gerenciador passou a usar controle HID nativo Windows com journal, habilitação exclusiva de REG2.DRIVERON e restauração verificada. O caminho hidapi anterior falhava em escrita nessa condição; o guard nativo habilitou e restaurou corretamente. Painel, atalhos da bancada e controle remoto agora podem apontar para um único controlador canônico, evitando preferências antigas que religavam outra rota ou modo.
+
+O leitor de estado também causou uma falha real: o Windows negou a substituição atômica de JSON durante uma leitura e o erro encerrava o áudio. A escrita agora usa temporários únicos e repetição limitada; uma falha de monitoramento é registrada sem encerrar o relay. Estado antigo continua sendo rejeitado pela interface, sem afirmar reprodução válida.
+
+**Política pedida:** AC-3 e E-AC-3/Dolby Digital Plus ficam sem upmix, inclusive quando têm dois canais. Só mono/estéreo com codec diferente de Dolby confirmado pode ser expandido. Como o mixer Windows perde o codec original, o upmix APO genérico instalado foi desativado com backup privado. A extensão faz a seleção no navegador; recebe codec declarado no buffer MSE ativo e/ou seleção corroborada do player. Quando o Opera entrega seis slots para origem estéreo, a expansão só é permitida com origem 1/2 confirmada. Codec/layout desconhecido com PCM6 permanece preservado. Versão do pacote 0.2.1: 53 testes isolados passaram; execução real continua dependendo da extensão carregada pelo usuário.
+
+A configuração da CM no Windows ainda era estéreo e os volumes dos oito slots estavam desiguais, com três quase em 0 dB. Foi configurada para oito canais PCM16/48 kHz, máscara 0x63F. Leituras finais: FL/FR e ambos os pares surround −23 dB; FC −14 dB; LFE −12 dB. São valores locais da bancada, não calibração transplantável para o Android. O usuário confirmou som melhor e todas as caixas audíveis.
+
+Ganho mestre do DSP reduzido de 0,30 para **0,15** após relato de estouro. Depois aplicado **trim LFE +3 dB** no DSP e **envio de 50% dos graves da central abaixo de 90 Hz**, uma única vez, antes dos delays. A margem considera a soma 5,5 e usa 1/5,5 antes do trim LFE. A central continua passa-altas no crossover; esse controle define quanto de seu ramo grave chega ao sub. Testes em arquivos confirmaram metade do envio frontal no LFE, ausência de clipping no vetor, posições e atrasos preservados. O usuário confirmou **som limpo e sub mais presente** nessa música. Não é aprovação de volume máximo em toda fonte ou de estabilidade prolongada; ainda houve frames descartados em sessões PCM.
+
+**Plano de equilíbrio A34:** o APK já possui seis trims editáveis em dB, independentes do master. Formalizar perfis de calibração, reset por canal, mute/solo temporário por canal, cópia/backup e comparação antes/depois. Ajustar FL, FR, FC, LFE, SL e SR por testes isolados e escuta/medição, sem confundir ganho com mapa físico ou atraso. O volume global vindo do Fire TV não deve sobrescrever esses trims. Implementar envio parcial dos graves da central independente do envio frontal no perfil Android, sem duplicar a cópia antiga; validar headroom com trims positivos e EQ.
+
+O [plano separado de controle Fire TV → volume do A34](FIRE-TV-CONTROLE-DE-VOLUME-A34.md) descreve investigação de IR/CEC/telemetria, estado de master/mute, confirmação, limites e testes. A óptica permanece uma rota distinta ainda instável; o loop solicitado não foi executado, pois a reprodução PCM teve prioridade. Não aprovar a cadeia Fire TV/A34 por essa confirmação do PC.
 
 ### Diagnóstico adicional sem outro cabo USB
 

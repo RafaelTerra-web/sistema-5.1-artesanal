@@ -1,5 +1,7 @@
 # Progresso consolidado: CM6206, Sony, upmix e Galaxy A34
 
+**Histórico de etapas anteriores:** para continuar o trabalho, começar pela [retomada mais recente](RETOMADA-PROXIMO-CHAT.md). Ela substitui hipóteses antigas de inversão central/sub, mestre 0,30 e LFE sem atraso. No Windows, o teste isolado confirmou FC slot 2 e LFE slot 3, sem swap. A regra final veta upmix de AC-3/E-AC-3 inclusive estéreo; a implementação Android ainda precisa transportar esse metadado original até a decisão.
+
 ## Atualização 0.5.0: fonte nativa, graves e central no R
 
 Esta atualização sucede o registro 0.4.0 abaixo. O usuário voltou a relatar graves distorcidos nas frontais depois da confirmação inicial de “limpo”; aquela escuta não encerrou a calibração. Após fechar o FxSound, a bancada PCM com corte de graves melhorou as frontais. Confirmou surrounds audíveis e sub baixo, com central ausente. Informou que a **central está no R** do módulo CEN/BASS: trocar FC/LFE somente na saída física e acompanhar a troca nos ganhos do driver. O par surround físico continua aberto.

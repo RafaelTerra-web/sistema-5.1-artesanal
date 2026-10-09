@@ -198,12 +198,14 @@ function renderSystem() {
   const rows = [
     ['Rota 5.1', running ? 'Ativa' : 'Desligada'],
     ['Rota', audio.Modo === 'Optical' ? 'Óptica AC-3 → decodificação → USB' : 'PC → PCM USB'],
-    ['Fonte', audio.InputMode === 'Stereo' ? 'Estéreo confirmado · upmix' : audio.InputMode === 'Native' ? '5.1 nativo preservado' : 'Auto por formato informado'],
+    ['Fonte', audio.InputMode === 'Stereo' ? 'Estéreo sem Dolby confirmado · upmix' : audio.InputMode === 'Native' ? 'Dolby / 5.1 preservado' : 'Auto por formato informado'],
     ['Reprodução', audio.PlayerId && running ? 'Saída WASAPI confirmada' : audio.Solicitado ? 'Aguardando confirmação de saída' : 'Desligada'],
     ['Jellyfin', state.jellyConnected ? `${(state.jellySessions || []).length} sessão(ões)` : 'Não conectado'],
     ['Última consulta', new Date().toLocaleTimeString('pt-BR')]
   ];
   if (hasDelays) rows.push(['Atrasos', 'FL/FR ' + delayPair(delays.FL, delays.FR) + '; CEN ' + delayNumber(delays.CEN) + ' ms; LFE ' + delayNumber(delays.LFE) + ' ms; SL/SR ' + delayPair(delays.SL, delays.SR)]);
+  if (Array.isArray(audio.RoutedApplications) && audio.RoutedApplications.length) rows.push(['Aplicativos direcionados', audio.RoutedApplications.join(', ')]);
+  if (Array.isArray(audio.RouteWarnings)) audio.RouteWarnings.forEach(message => rows.push(['Restauração de aplicativos', String(message)]));
   if (audio.UltimoErro) rows.push(['Último erro de áudio', audio.UltimoErro]);
   if (state.audioError) rows.push(['Consulta de áudio', state.audioError]);
   if (state.backend?.lastWorkerError) rows.push(['Controle', state.backend.lastWorkerError.message || String(state.backend.lastWorkerError)]);
@@ -430,7 +432,7 @@ $('openNetflixBrowser').onclick = () => openNetflix('browser');
 $('audioOff').onclick = () => changeSystem('/api/audio', {action: 'Desligar'}, 'Liberando a saída HDMI…', 45000);
 $('upmixAuto').onclick = () => changeSystem('/api/audio', {action: 'UpmixAuto'}, 'Usando o formato informado…', 55000);
 $('upmixNative').onclick = () => changeSystem('/api/audio', {action: 'Nativo'}, 'Preservando os canais 5.1 originais…', 55000);
-$('upmixStereo').onclick = () => changeSystem('/api/audio', {action: 'Stereo'}, 'Aplicando upmix à fonte estéreo confirmada…', 55000);
+$('upmixStereo').onclick = () => changeSystem('/api/audio', {action: 'Stereo'}, 'Aplicando upmix ao estéreo sem Dolby confirmado…', 55000);
 document.querySelectorAll('[data-profile]').forEach(button => button.onclick = () => changeSystem('/api/profile', {profile: button.dataset.profile}, 'Trocando perfil; o áudio pode parar por alguns segundos…', 90000));
 $('reconnect').onclick = () => { poll(); }; $('refreshStatus').onclick = () => poll();
 $('jellyForm').onsubmit = async event => {

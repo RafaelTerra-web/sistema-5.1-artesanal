@@ -1,5 +1,6 @@
 // Scoped CM6206 PCM optical-output configuration, with durable original-state journal.
-// Only registers 0, 1 and 5 may be modified; there is no INIT or audio-stream code.
+// Optical mode owns limited bits of 0/1/5; analog mode owns only REG2 DRIVERON.
+// There is no INIT, EEPROM or audio-stream code.
 // HID register protocol and bit fields: C-Media CM6206 datasheet sections 6.1,
 // https://tehnoblog.org/downloads/cmedia/C-Media_CM-6206.pdf
 using System;
@@ -139,7 +140,7 @@ namespace Sistema51.Hardware
         }
         private void Write(int register, int value)
         {
-            if (register != 0 && register != 1 && register != 5) throw new InvalidOperationException("Only registers 0, 1 and 5 may be written.");
+            if (register != 0 && register != 1 && register != 2 && register != 5) throw new InvalidOperationException("Only scoped optical/analog registers may be written.");
             WritesPerformed = true;
             Operations.Add("Submit HID write REG" + register + " value 0x" + value.ToString("X4"));
             SaveJournal();
@@ -170,6 +171,13 @@ namespace Sistema51.Hardware
         {
             EnsureExternalPcm48(true);
         }
+        public void EnsureAnalogDriver()
+        {
+            CheckOpen(); if (journal == null) throw new IOException("Original-state journal is unavailable.");
+            configurationAttempted = true;
+            Apply(2, 0x8000, 0x8000);
+            Operations.Add("Analog DRIVERON verified; other REG2 bits preserved."); SaveJournal();
+        }
         public void EnsureExternalPcm48(bool copyrightNotAsserted)
         {
             CheckOpen(); if (journal == null) throw new IOException("Original-state journal is unavailable.");
@@ -193,7 +201,7 @@ namespace Sistema51.Hardware
                 throw new ArgumentException("Recovery requires six previous registers and six masks.");
             if (!string.Equals(path, previousDevicePath, StringComparison.Ordinal))
                 throw new ArgumentException("Recovery device path must exactly match the currently opened HID interface.");
-            int[] allowed = { 0x8007, 0x000E, 0, 0, 0, 0x0F00 };
+            int[] allowed = { 0x8007, 0x000E, 0x8000, 0, 0, 0x0F00 };
             for (int register = 0; register < 6; register++) {
                 if (previous[register] < 0 || previous[register] > 0xFFFF || masks[register] < 0 || masks[register] > 0xFFFF ||
                     (masks[register] & ~allowed[register]) != 0)

@@ -49,6 +49,9 @@ def render(name, channels, frequency):
 bass=render('front40',[0],40)
 assert bass[0]<.04*master and bass[3]>.15*master
 if not stereo: assert max(bass[1:3]+bass[4:])==0
+if not stereo and 'c3=c0+c1+0.5*c2+c3+c4' in graph:
+    center_bass=render('center40',[2],40)
+    assert abs(center_bass[3]/bass[3]-.5)<1e-5, 'Center bass must enter LFE at half the frontal send, once.'
 high=render('front1000',[0],1000)
 assert high[0]>.999*master and high[3]<(.00004 if stereo else .00002)*master
 center=render('center1000',[2],1000)

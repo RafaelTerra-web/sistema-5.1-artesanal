@@ -4,9 +4,11 @@ Código desenvolvido para transformar o áudio compartilhado do Windows em Dolby
 
 **Comece por [Reaproveitar em outro projeto](docs/REAPROVEITAMENTO.md).** Para entender as decisões e limitações, leia [Arquitetura](docs/ARQUITETURA.md) e [Estado e validação](docs/ESTADO-E-VALIDACAO.md).
 
+**Continuidade da bancada em 09/10/2026:** leia primeiro o [ponto de retomada do próximo chat](docs/RETOMADA-PROXIMO-CHAT.md). PCM/upmix no PC restaurado e confirmado por escuta; mestre 0,15, sub +3 dB, envio central grave 50%. AC-3/E-AC-3 não recebem upmix, inclusive Dolby estéreo. A óptica contínua e a cadeia independente no A34 permanecem pendentes. As seções antigas abaixo preservam a arquitetura exportada anterior.
+
 ## Plano aprovado para o Galaxy A34
 
-A versão atual é **0.6.0**, instalada e testada no A34 em 09/10/2026. Acrescenta crossover frontal/central, filtro subsônico e troca central/LFE na saída USB. Arquivos com seis canais decodificados permanecem nativos automaticamente; upmix se aplica a mono/estéreo. A [bancada PCM no PC](docs/PC-CM6206-PCM.md) verifica o grafo sem recodificação Dolby. Reprodução USB e captura óptica completas no A34 ainda dependem de validação física. O parágrafo abaixo registra a etapa 0.4.0.
+A versão atual é **0.6.0**, instalada e testada no A34 em 09/10/2026. Acrescenta crossover frontal/central, filtro subsônico e troca central/LFE na saída USB. Arquivos com seis canais decodificados permanecem nativos automaticamente; o laboratório atual seleciona upmix pelo número de canais. Ainda falta propagar o codec original no Android para também preservar Dolby estéreo, como exige a regra final. A [bancada PCM no PC](docs/PC-CM6206-PCM.md) verifica o grafo sem recodificação Dolby. Reprodução USB e captura óptica completas no A34 ainda dependem de validação física. O parágrafo abaixo registra a etapa 0.4.0.
 
 **Atualização de 09/10/2026:** o [aplicativo A34 0.4.0](android-a34/README.md) incorpora upmix ajustável, modos Preencher caixas/Ambiência e ferramentas de bancada. A rota HDMI 2 → Sony → óptico → CM6206 → USB no Windows recebeu e decodificou AC-3 de seis canais com CRC válido. Use **Sistema de áudio / Auto 1 / DD+ Não** na TV para a condição que passou. As seis caixas foram ouvidas no teste direto USB, após habilitar REG2.DRIVERON; o par surround exato continua aberto. Consulte o [relatório consolidado e próximos passos](docs/PROGRESSO-A34-E-UPMIX-2026-10-09.md) e a [comunicação CM6206](docs/CM6206-COMUNICACAO-2026-10-09.md). Captura comprimida, controle analógico integrado e mapa físico no Android, além da estabilidade completa, continuam pendentes; o plano abaixo preserva o histórico anterior.
 
@@ -56,7 +58,7 @@ A faixa estéreo pode ser expandida para as seis caixas. Isso não cria os canai
 | --- | ---: | ---: |
 | FL / FR | 76,8 ms | 3.686 amostras = 76,792 ms |
 | Central | 5,8 ms | 278 amostras = 5,792 ms |
-| LFE | 0 ms | 0 amostras |
+| LFE | **5,8 ms** | **278 amostras = 5,792 ms** |
 | SL / SR | 71 ms | 3.408 amostras |
 
 Perfil Fidelidade: **AC-3 640 kbit/s e buffer de saída de 32 ms**. Perfil Estável: **448 kbit/s e 64 ms**. O buffer de saída é somente uma parcela da latência total. O código contém uma compensação de relógio `asetrate=48002` específica da medição deste PC; ela precisa ser recalibrada em outro sistema.
@@ -120,5 +122,7 @@ A lista de permissões do `.gitignore` publica código, documentos e exemplos. E
 As dependências de terceiros mantêm seus próprios termos de distribuição. Este repositório não redistribui seus executáveis nem o player público completo da Netflix.
 
 ## Montagem Fire TV e A34
+
+O [plano de controle de volume pelo Fire TV](docs/FIRE-TV-CONTROLE-DE-VOLUME-A34.md) separa volume digital, comandos IR/CEC e master do A34. O equilíbrio manual usa seis trims independentes; os botões do Fire TV deverão modificar apenas master/mute, preservando esse equilíbrio. Integração Fire TV ainda planejada, sem teste físico.
 
 O [relatório da rota Fire TV → HDMI 2/Bravia → óptica/CM6206 → A34](docs/RELATORIO-ROTA-FIRE-TV-A34-2026-10-09.md) registra o mapa central/sub confirmado, os atrasos atualizados (incluindo LFE 5,8 ms), limites e plano de integração. A bancada óptica contínua ainda apresenta falhas de controle/driver e CRC; o A34 ainda não substitui o PC nessa cadeia. O [gerenciador PC](scripts/pc-cm6206-system.ps1) controla PCM/óptica e ganho no DSP, enquanto a [extensão experimental](configuracao-pc/browser-upmix-extensao/LEIA-ME.md) decide por canais decodificados antes do mixer; validação no Opera permanece pendente.

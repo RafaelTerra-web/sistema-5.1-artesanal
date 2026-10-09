@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Sistema 5.1 — Upmix por fonte",
-  "version": "0.1.0",
-  "description": "Upmix de mono/estéreo antes do mixer; áudio de seis canais permanece nativo.",
+  "version": "0.2.1",
+  "description": "Upmix de mono/estéreo com codec não Dolby confirmado; AC-3/E-AC-3 e seis canais preservados.",
   "content_scripts": [
+    {"matches": ["https://www.youtube.com/*"], "js": ["codec-capture.js"], "run_at": "document_start", "world": "MAIN"},
     {"matches": ["https://www.youtube.com/*"], "js": ["page.js"], "run_at": "document_idle", "world": "MAIN"},
     {"matches": ["https://www.youtube.com/*"], "js": ["bootstrap.js"], "run_at": "document_idle"}
   ],

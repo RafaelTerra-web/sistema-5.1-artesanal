@@ -12,6 +12,16 @@ param(
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 if(-not $ConfigPath){$ConfigPath=Join-Path $root 'configuracao-pc/cm6206-local.json'}
+if(Test-Path -LiteralPath $ConfigPath -PathType Leaf){
+    $aliasConfig=[IO.File]::ReadAllText($ConfigPath)|ConvertFrom-Json
+    if($aliasConfig.ControllerPath -and [IO.Path]::GetFullPath($aliasConfig.ControllerPath) -ne [IO.Path]::GetFullPath($PSCommandPath)){
+        if(-not(Test-Path -LiteralPath $aliasConfig.ControllerPath -PathType Leaf)){throw 'Controlador canônico ausente.'}
+        $forward=@{};foreach($key in $PSBoundParameters.Keys){$forward[$key]=$PSBoundParameters[$key]}
+        if($aliasConfig.ControllerConfigPath){$forward.ConfigPath=$aliasConfig.ControllerConfigPath}
+        & $aliasConfig.ControllerPath @forward
+        return
+    }
+}
 $statePath=Join-Path $root 'configuracao-pc/cm6206-state.json'
 function Read-State {
     $defaults=[ordered]@{Estado='Desligado';Ligado=$false;Solicitado=$false;Modo='Pcm';InputMode='Auto';Gain=0.1;Muted=$false;RunnerId=0;RunnerStartedUtc='';StopPath='';UltimoErro='';AtualizadoEm=[DateTimeOffset]::UtcNow.ToString('o')}
@@ -81,6 +91,7 @@ try {
     foreach($key in @('CaptureEndpointId','RenderEndpointId')){if($cfg.$key -notmatch '^\{0\.0\.0\.00000000\}\.\{[0-9a-fA-F-]{36}\}$'){throw ('Endpoint render inválido: '+$key)}}
     if(-not $cfg.PSObject.Properties['Gain'] -or $cfg.Gain -lt 0 -or $cfg.Gain -gt 1){throw 'Ganho linear inválido.'}
     $resolved=if($Mode -eq 'Auto'){'Pcm'}else{$Mode}
+    Save-Json (Join-Path $root 'configuracao-pc/cm6206-panel.json') ([ordered]@{Mode=$resolved;InputMode=$InputMode})
     if(-not $Restart -and (State-OwnerAlive $state) -and (State-Fresh $state) -and $state.Estado -ne 'Falha' -and $state.Modo -eq $resolved -and $state.InputMode -eq $InputMode){Save-Json $ConfigPath $cfg;Emit-State $state;return}
     Stop-Session $state
     Save-Json $ConfigPath $cfg

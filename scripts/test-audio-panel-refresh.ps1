@@ -1,6 +1,7 @@
 # Exercise the actual timer handler without opening a form or changing audio.
 param([string]$PanelPath = (Join-Path $PSScriptRoot '..\configuracao-pc\Controle do sistema 5.1.ps1'))
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot '..\configuracao-pc\CM6206 controlador comum.ps1')
 Add-Type -AssemblyName System.Drawing
 $tokens = $null; $parseErrors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -52,6 +53,9 @@ function Write-TestState($State) {[IO.File]::WriteAllText($script:systemStatePat
 try {
     $state=@{Estado='Ligado';Ligado=$true;Solicitado=$true;Modo='Pcm';InputMode='Native';RunnerId=$PID;PlayerId=1;AtualizadoEm=[DateTime]::UtcNow.ToString('o');RunnerStartedUtc=(Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o');AtrasosMs=@{FL=76.8;FR=76.8;CEN=5.8;LFE=5.8;SL=71;SR=71}}
     Write-TestState $state
+    [IO.File]::WriteAllText($script:preferencePath,'{"Mode":"Optical","InputMode":"Stereo"}')
+    $activePreferences=Get-AudioPreferences
+    if ($activePreferences.Mode -ne 'Pcm' -or $activePreferences.InputMode -ne 'Native') {throw 'Old UI preferences replaced the active canonical session.'}
     if (-not (Get-AudioStatus).Ligado) {throw 'Fresh state from its matching worker was rejected.'}
     $delayText=Get-AudioDelayText (Get-AudioStatus)
     if ($delayText -notmatch '^Atrasos aplicados: FL/FR 76,8 ms; CEN 5,8 ms; LFE 5,8 ms; SL/SR 71,0 ms\.$') {throw ('Current session delays were not displayed: '+$delayText)}
@@ -65,6 +69,8 @@ try {
     $state.RunnerStartedUtc=(Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
     $state.AtualizadoEm=[DateTime]::UtcNow.AddMinutes(-1).ToString('o');Write-TestState $state
     if ((Get-AudioStatus).Ligado) {throw 'Stale ready state advertised playback.'}
+    $inactivePreferences=Get-AudioPreferences
+    if ($inactivePreferences.Mode -ne 'Optical' -or $inactivePreferences.InputMode -ne 'Stereo') {throw 'A stale worker overrode saved inactive UI preferences.'}
     [IO.File]::WriteAllText($script:systemStatePath,'{"Ligado":')
     if ((Get-AudioStatus).Ligado -or -not (Get-AudioStatus).UltimoErro) {throw 'Malformed state was not safely reported.'}
 } finally {

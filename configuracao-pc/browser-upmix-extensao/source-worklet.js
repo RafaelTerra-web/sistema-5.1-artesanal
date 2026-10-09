@@ -1,11 +1,19 @@
 /* Decoded input channel count comes from the browser's render topology.
  * channelCountMode=max and discrete interpretation are required on the node.
  * Never infer source layout from codec, itag, gain or quiet sample values.
+ * Codec is a separate permission gate: unknown and Dolby sources stay native.
  */
 class Sistema51SourceProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.enabled = true;
+    /** @type {'Unknown'|'AC3'|'EAC3'|'Opus'|'AAC'|'Vorbis'|'MP3'|'FLAC'|'PCM'} */
+    this.originalAudioCodec = 'Unknown';
+    /** @type {number|null} */
+    this.originalAudioChannels = null;
+    this.sourceConfirmed = false;
+    this.generation = 0;
+    this.sourceFramesRemaining = 0;
     this.channels = -1;
     this.fade = 0;
     this.framesUntilReport = 0;
@@ -18,7 +26,32 @@ class Sistema51SourceProcessor extends AudioWorkletProcessor {
     this.a1 = -2 * cosine / a0;
     this.a2 = (1 - alpha) / a0;
     this.port.onmessage = event => {
+      const value = event.data;
+      if (value?.type === 'set-source') {
+        if (!Number.isSafeInteger(value.generation) || value.generation < this.generation ||
+            !['Unknown', 'AC3', 'EAC3', 'Opus', 'AAC', 'Vorbis', 'MP3', 'FLAC', 'PCM'].includes(value.originalAudioCodec)) return;
+        const confirmed = value.confirmed === true && value.originalAudioCodec !== 'Unknown';
+        const channels = Number.isInteger(value.originalAudioChannels) && value.originalAudioChannels >= 1 &&
+          value.originalAudioChannels <= 32 ? value.originalAudioChannels : null;
+        if (value.generation !== this.generation || value.originalAudioCodec !== this.originalAudioCodec ||
+            channels !== this.originalAudioChannels || confirmed !== this.sourceConfirmed) {
+          this.reset();
+          this.framesUntilReport = 0;
+        }
+        this.generation = value.generation;
+        this.originalAudioCodec = value.originalAudioCodec;
+        this.originalAudioChannels = channels;
+        this.sourceConfirmed = confirmed;
+        // A stopped/throttled page cannot leave a codec permission valid forever.
+        this.sourceFramesRemaining = confirmed ? sampleRate : 0;
+        return;
+      }
       if (event.data?.type === 'source-reset') {
+        this.generation++;
+        this.originalAudioCodec = 'Unknown';
+        this.originalAudioChannels = null;
+        this.sourceConfirmed = false;
+        this.sourceFramesRemaining = 0;
         this.reset();
         this.framesUntilReport = 0;
         return;
@@ -53,15 +86,39 @@ class Sistema51SourceProcessor extends AudioWorkletProcessor {
       this.reset();
       this.framesUntilReport = 0;
     }
-    const synthesize = this.enabled && output.length >= 6 && (count === 1 || count === 2);
+    if (this.sourceConfirmed && this.sourceFramesRemaining <= 0) {
+      this.sourceConfirmed = false;
+      this.originalAudioCodec = 'Unknown';
+      this.originalAudioChannels = null;
+      this.reset();
+      this.framesUntilReport = 0;
+    }
+    const knownNonDolby = this.sourceConfirmed && ['Opus', 'AAC', 'Vorbis', 'MP3', 'FLAC', 'PCM'].includes(this.originalAudioCodec);
+    // Some browsers pad decoded stereo to six PCM slots. Only confirmed
+    // selected-source 1/2-channel metadata can authorize that six-slot case.
+    const sourceMultichannel = this.originalAudioChannels !== null && this.originalAudioChannels > 2;
+    const paddedStereo = count === 6 && (this.originalAudioChannels === 1 || this.originalAudioChannels === 2);
+    const synthesize = this.enabled && knownNonDolby && !sourceMultichannel && output.length >= 6 &&
+      (count === 1 || count === 2 || paddedStereo);
+    const synthesisChannels = paddedStereo ? this.originalAudioChannels : count;
+    const blockedReason = synthesize ? null : !this.enabled ? 'upmix-disabled' :
+      ['AC3', 'EAC3'].includes(this.originalAudioCodec) ? 'dolby-protected' : !knownNonDolby ? 'codec-unconfirmed' :
+      sourceMultichannel ? 'original-multichannel' :
+      count === 6 ? 'source-layout-unconfirmed' :
+      count === 0 ? 'awaiting-audio' : 'unsupported-layout';
     if (this.framesUntilReport <= 0) {
       this.port.postMessage({type: 'source-channels', version: 1, channels: count,
-        mode: synthesize ? 'Stereo' : count === 6 ? 'Native' : 'Unknown',
+        mode: synthesize ? 'Stereo' : count === 6 && this.originalAudioChannels === 6 ? 'Native' : 'Unknown',
         upmixed: synthesize, preserved: !synthesize && count <= output.length,
+        upmixSourceChannels: synthesize ? synthesisChannels : null,
+        originalAudioCodec: this.originalAudioCodec, codecConfirmed: this.sourceConfirmed,
+        originalAudioChannels: this.originalAudioChannels,
+        blockedReason, mediaGeneration: this.generation,
         method: 'decoded-worklet-input', sampleRate});
       this.framesUntilReport = sampleRate;
     }
     this.framesUntilReport -= length;
+    this.sourceFramesRemaining -= length;
     // Explicitly clear reusable buffers, including surplus output slots.
     for (let channel = 0; channel < output.length; channel++) output[channel].fill(0);
     if (!synthesize) {
@@ -74,7 +131,7 @@ class Sistema51SourceProcessor extends AudioWorkletProcessor {
         output[channel].set(input[channel]);
       return true;
     }
-    const left = input[0], right = count === 1 ? left : input[1];
+    const left = input[0], right = synthesisChannels === 1 ? left : input[1];
     output[0].set(left);
     output[1].set(right);
     for (let frame = 0; frame < length; frame++) {

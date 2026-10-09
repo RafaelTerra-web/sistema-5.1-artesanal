@@ -5,11 +5,14 @@ param(
 )
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'Audio gerenciamento comum.ps1')
+. (Join-Path $PSScriptRoot 'CM6206 controlador comum.ps1')
 $script:baseDir=$PSScriptRoot
-$script:systemPath=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\scripts\pc-cm6206-system.ps1'))
-$script:systemStatePath=Join-Path $PSScriptRoot 'cm6206-state.json'
-$script:preferencePath=Join-Path $PSScriptRoot 'cm6206-panel.json'
-$script:actionErrorPath=Join-Path $PSScriptRoot 'controle-audio-erro.json'
+$locations=Resolve-Cm6206ControllerLocations $PSScriptRoot
+$script:systemPath=$locations.ControllerPath
+$script:systemConfigPath=$locations.ControllerConfigPath
+$script:systemStatePath=$locations.ControllerStatePath
+$script:preferencePath=$locations.ControllerPreferencesPath
+$script:actionErrorPath=$locations.ControllerActionErrorPath
 
 function Get-AudioPreferences {
     $preferences=[pscustomobject]@{Mode='Pcm';InputMode='Auto'}
@@ -20,6 +23,15 @@ function Get-AudioPreferences {
             if ($saved.InputMode -in @('Auto','Stereo','Native')) {$preferences.InputMode=$saved.InputMode}
         } catch { }
     }
+    # The active canonical session wins over an old UI preference. This keeps
+    # a CLI Native start from becoming Stereo when a second shortcut is opened.
+    try {
+        $active=Read-Cm6206ControllerStatus $script:systemStatePath
+        if (($active.Ligado -or $active.Solicitado) -and (Test-Cm6206ControllerOwner $active)) {
+            if ($active.Modo -in @('Pcm','Optical','Auto')) {$preferences.Mode=$active.Modo}
+            if ($active.InputMode -in @('Auto','Stereo','Native')) {$preferences.InputMode=$active.InputMode}
+        }
+    } catch { }
     return $preferences
 }
 
@@ -35,7 +47,7 @@ function Invoke-AudioSystem([string]$Action,[string]$SelectedMode,[string]$Selec
     $start=[Diagnostics.ProcessStartInfo]::new()
     $start.FileName='powershell.exe';$start.UseShellExecute=$false;$start.CreateNoWindow=$true
     $start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
-    $start.Arguments='-NoLogo -NoProfile -ExecutionPolicy Bypass -File "'+$script:systemPath+'" -Action '+$Action+' -Mode '+$SelectedMode+' -InputMode '+$SelectedInputMode
+    $start.Arguments='-NoLogo -NoProfile -ExecutionPolicy Bypass -File "'+$script:systemPath+'" -ConfigPath "'+$script:systemConfigPath+'" -Action '+$Action+' -Mode '+$SelectedMode+' -InputMode '+$SelectedInputMode
     $process=[Diagnostics.Process]::new();$process.StartInfo=$start
     try {
         if (-not $process.Start()) {throw 'Nao foi possivel iniciar o gerenciador CM6206.'}
@@ -57,12 +69,13 @@ function Get-AudioStatus {
         Estado='Desligado - clique em Ligar';Ligado=$false;Solicitado=$false
         Modo=$preferences.Mode;InputMode=$preferences.InputMode;RunnerId=$null;PlayerId=$null
         UltimoErro=$null;AtualizadoEm=$null;Perfil='PCM USB';AtrasosMs=$null;Gain=$null;Muted=$null
+        RoutedApplications=@();RouteWarnings=@()
         UpmixAutomatico=($preferences.InputMode -eq 'Auto')
     }
     if ([IO.File]::Exists($script:systemStatePath)) {
         try {
-            $saved=[IO.File]::ReadAllText($script:systemStatePath)|ConvertFrom-Json
-            foreach ($name in @('Estado','Ligado','Solicitado','Modo','InputMode','RunnerId','PlayerId','UltimoErro','AtualizadoEm','Perfil','AtrasosMs','Gain','Muted')) {
+            $saved=Read-Cm6206ControllerStatus $script:systemStatePath
+            foreach ($name in @('Estado','Ligado','Solicitado','Modo','InputMode','RunnerId','PlayerId','UltimoErro','AtualizadoEm','Perfil','AtrasosMs','Gain','Muted','RoutedApplications','RouteWarnings')) {
                 if ($saved.PSObject.Properties[$name]) {$status.$name=$saved.$name}
             }
             # Ligado is authored only after fresh WASAPI output/frames. Reject
@@ -93,8 +106,10 @@ function Get-AudioStatus {
     return $status
 }
 
-function Start-AudioSystem {
+function Start-AudioSystem([string]$SelectedMode,[string]$SelectedInputMode) {
     $preferences=Get-AudioPreferences
+    if ($SelectedMode) {$preferences.Mode=$SelectedMode}
+    if ($SelectedInputMode) {$preferences.InputMode=$SelectedInputMode}
     return Invoke-AudioSystem 'Start' $preferences.Mode $preferences.InputMode
 }
 
@@ -139,10 +154,10 @@ if ($Acao -ne 'Painel') {
         elseif ($Acao -eq 'Stereo') {$preferences.InputMode='Stereo'}
         Save-AudioPreferences $preferences.Mode $preferences.InputMode
         if ($Acao -eq 'Desligar') {$status=Stop-AudioSystem}
-        elseif ($Acao -eq 'Ligar') {$status=Start-AudioSystem}
+        elseif ($Acao -eq 'Ligar') {$status=Start-AudioSystem $preferences.Mode $preferences.InputMode}
         else {
             $status=Get-AudioStatus
-            if ($status.Solicitado -or $status.Ligado) {$status=Start-AudioSystem}
+            if ($status.Solicitado -or $status.Ligado) {$status=Start-AudioSystem $preferences.Mode $preferences.InputMode}
             else {$status.InputMode=$preferences.InputMode;$status.Modo=$preferences.Mode;$status.UpmixAutomatico=$preferences.InputMode -eq 'Auto'}
         }
         $status|ConvertTo-Json -Depth 8 -Compress
@@ -174,12 +189,12 @@ $routeMode=[Windows.Forms.ComboBox]::new();$routeMode.DropDownStyle='DropDownLis
 [void]$routeMode.Items.Add('PCM USB - PC para CM6206');[void]$routeMode.Items.Add('Optica - AC-3 recebido da TV')
 $sourceLabel=[Windows.Forms.Label]::new();$sourceLabel.Text='Formato da fonte';$sourceLabel.SetBounds(306,126,270,25)
 $sourceMode=[Windows.Forms.ComboBox]::new();$sourceMode.DropDownStyle='DropDownList';$sourceMode.SetBounds(306,152,270,30)
-[void]$sourceMode.Items.Add('Auto - preservar formato informado');[void]$sourceMode.Items.Add('Estereo confirmado - fazer upmix');[void]$sourceMode.Items.Add('5.1 nativo - preservar canais')
+[void]$sourceMode.Items.Add('Auto - preservar formato informado');[void]$sourceMode.Items.Add('Estereo sem Dolby confirmado');[void]$sourceMode.Items.Add('Dolby / 5.1 - preservar canais')
 $preferences=Get-AudioPreferences
 $routeMode.SelectedIndex=if ($preferences.Mode -eq 'Optical') {1} else {0}
 $sourceMode.SelectedIndex=@('Auto','Stereo','Native').IndexOf($preferences.InputMode)
 $details=[Windows.Forms.Label]::new();$details.SetBounds(26,198,550,48)
-$details.Text='PCM USB recebe o audio do navegador. A rota optica decodifica AC-3 da TV. Selecione estereo somente para uma fonte confirmada; 5.1 conserva seus canais.'
+$details.Text='PCM USB recebe o audio dos aplicativos. Upmix manual exige estereo sem Dolby confirmado. AC-3, E-AC-3 e fontes 5.1 conservam seus canais.'
 $delayLabel=[Windows.Forms.Label]::new();$delayLabel.SetBounds(26,252,550,44)
 $delayLabel.Font=[Drawing.Font]::new('Segoe UI',10);$delayLabel.Text='Atrasos: aguardando valores confirmados nesta rota.'
 $on=[Windows.Forms.Button]::new();$on.Text='Ligar / aplicar rota';$on.SetBounds(26,302,260,44)

@@ -25,13 +25,16 @@ class SupervisorTests(unittest.TestCase):
                     'RenderEndpointId': 'usb', 'HdmiEndpointId': 'hdmi',
                     'FallbackEndpointId': 'fallback', 'MpvPath': 'mock-mpv',
                     'SoundVolumeViewPath': 'mock-volume', 'SpdifCaptureEndpointId': 'optical',
-                    'Application': 'opera.exe', 'EncodePcToHdmi': False}
+                    'Application': 'opera.exe', 'EncodePcToHdmi': False, 'UseNativeHidGuard': False}
         engine.save_json(self.cfg_path, self.cfg)
         self.launch = {'ConfigPath': str(self.cfg_path), 'RunDirectory': str(self.run),
                        'StatePath': str(self.run / 'state.json'), 'IpcPath': 'mock-pipe',
                        'InitialState': {'Modo': 'Pcm', 'InputMode': 'Auto', 'Solicitado': True}}
         self.session = engine.Session(self.launch)
         self.session.ipc = Mock()
+        # A missed mock must fail instead of opening the real local peripheral.
+        hid_guard=patch.dict(sys.modules,{'hid':None})
+        hid_guard.start();self.addCleanup(hid_guard.stop)
 
     def configure(self, **changes):
         self.cfg.update(changes)
@@ -53,7 +56,10 @@ class SupervisorTests(unittest.TestCase):
                                        save=engine.save_json)
         self.session.helpers = helper
         engine.save_json(self.session.journal, {'originalReg2': original, 'restorationVerified': False})
-        engine.save_json(self.run/'routes-cleanup.json', [{'Type':'Device','Default':'Render','Default Multimedia':'Render','Item ID':self.cfg['CaptureEndpointId']}])
+        engine.save_json(self.run/'routes-cleanup.json', [
+            {'Type':'Device','Default':'Render','Default Multimedia':'Render','Item ID':self.cfg['CaptureEndpointId']},
+            {'Type':'Application','Direction':'Render','Device State':'Active','Process Path':'C:/Opera/opera.exe',
+             'Item ID':self.cfg['CaptureEndpointId']+'|opera-session'}])
         return helper
 
     def monitor_values(self, values):
@@ -83,9 +89,26 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(engine.read_json(path), {'rota': 'central'})
         self.assertFalse(path.with_name(path.name + '.tmp').exists())
         with patch.object(engine.os, 'replace', side_effect=OSError('simulated replace failure')):
-            with self.assertRaises(OSError):
-                engine.save_json(path, {'rota': 'failed'})
+            with self.assertRaises(OSError):engine.save_json(path, {'rota': 'failed'})
         self.assertEqual(engine.read_json(path), {'rota': 'central'})
+
+    def test_json_replace_retries_transient_windows_sharing(self):
+        path=self.run/'shared-state.json';engine.save_json(path,{'generation':1})
+        replace=engine.os.replace;attempts=[0]
+        def transient(source,destination):
+            attempts[0]+=1
+            if attempts[0]<3:raise PermissionError('temporary reader denied delete sharing')
+            return replace(source,destination)
+        with patch.object(engine.os,'replace',side_effect=transient),patch.object(engine.time,'sleep'):
+            engine.save_json(path,{'generation':2})
+        self.assertEqual(engine.read_json(path),{'generation':2})
+        self.assertEqual(list(self.run.glob('shared-state.json.*.tmp')),[])
+
+    def test_status_write_failure_never_stops_audio(self):
+        with patch.object(engine,'save_json',side_effect=PermissionError('dashboard lock')):
+            self.session.publish(Ligado=True,Estado='Em execução')
+        self.assertTrue(self.session.state['Ligado'])
+        self.assertIn('dashboard lock',(self.run/'status-write-errors.log').read_text())
 
     def test_publish_persists_utc_and_state(self):
         self.session.publish(Estado='Teste', Ligado=False)
@@ -171,7 +194,10 @@ class SupervisorTests(unittest.TestCase):
 
         self.session.volume_tool = Mock(side_effect=sound)
         self.session.route()
-        self.assertEqual(self.session.routes, {'console': 'fallback', 'multimedia': 'fallback'})
+        self.assertEqual(self.session.routes['console'], 'fallback')
+        self.assertEqual(self.session.routes['multimedia'], 'fallback')
+        self.assertEqual(self.session.routes['applications'][0]['process'], 'opera.exe')
+        self.assertFalse(self.session.routes['applications'][0]['preferenceKnown'])
         self.assertEqual(engine.read_json(self.run / 'restore-routes.json'), self.session.routes)
 
     def test_route_ambiguous_defaults_changes_nothing(self):
@@ -234,6 +260,38 @@ class SupervisorTests(unittest.TestCase):
         self.assertTrue(self.session.restore_needed)
         self.assertEqual(engine.read_json(self.session.journal)['enabledReg2'], 0xe004)
 
+    def test_native_guard_requires_its_own_held_status(self):
+        self.configure(UseNativeHidGuard=True)
+        self.session.cfg['UseNativeHidGuard']=True
+        child=Mock(pid=321);child.poll.return_value=None
+        engine.save_json(self.run/'analog-status.json',{'Pid':321,'Status':'held','Ready':True,'Error':''})
+        with patch.object(engine.subprocess,'Popen',return_value=child):
+            self.session.analog_on()
+        self.assertIs(self.session.native_guard,child)
+        self.assertIsNone(self.session.hid)
+
+    def test_native_guard_rejects_another_process_status(self):
+        self.configure(UseNativeHidGuard=True)
+        self.session.cfg['UseNativeHidGuard']=True
+        child=Mock(pid=321);child.poll.return_value=0
+        engine.save_json(self.run/'analog-status.json',{'Pid':999,'Status':'held','Ready':True,'Error':''})
+        with patch.object(engine.subprocess,'Popen',return_value=child):
+            with self.assertRaises(RuntimeError):self.session.analog_on()
+
+    def test_native_guard_cleanup_requires_restoration_ack(self):
+        self.session.native_guard=Mock(pid=321)
+        def released(timeout):
+            self.assertTrue((self.run/'analog.stop').exists())
+            engine.save_json(self.run/'analog-status.json',{'Pid':321,'Status':'stopped','Ready':False,'RestorationVerified':True})
+        self.session.native_guard.wait.side_effect=released
+        self.session.cleanup()
+        self.session.native_guard.wait.assert_called_once_with(timeout=8)
+
+    def test_native_guard_cleanup_failure_is_not_success(self):
+        self.session.native_guard=Mock(pid=321)
+        engine.save_json(self.run/'analog-status.json',{'Pid':321,'Status':'failed','Ready':False,'RestorationVerified':False,'Error':'readback failed'})
+        with self.assertRaisesRegex(RuntimeError,'readback failed'):self.session.cleanup()
+
     def test_analog_read_failures_never_submit_blind_register_write(self):
         device, hid, helper, spec = self.analog_mocks([TimeoutError('mock read failure')] * 4)
         with patch.dict(sys.modules, {'hid': hid}), \
@@ -268,7 +326,7 @@ class SupervisorTests(unittest.TestCase):
             self.session.cleanup()
         self.assertFalse(engine.read_json(self.session.journal)['restorationVerified'])
         self.session.hid.close.assert_called_once()
-        self.assertEqual(self.session.volume_tool.call_count, 5)
+        self.assertEqual(self.session.volume_tool.call_count, 3)
 
     def test_cleanup_original_driveron_still_requires_verification(self):
         helper = self.helpers(original=0xe004, read_values=(0x6004,))
@@ -289,7 +347,7 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(helper.read_register.call_count, 0, 'HID must not be restored before a worker is known to have released audio')
         self.session.hid.close.assert_called_once()
         self.assertFalse(engine.read_json(self.session.journal)['restorationVerified'])
-        self.assertEqual(self.session.volume_tool.call_count, 5, 'Child failure prevented route cleanup')
+        self.assertEqual(self.session.volume_tool.call_count, 3, 'Child failure prevented route cleanup')
 
     def test_cleanup_hid_close_failure_still_attempts_routes(self):
         self.helpers()
@@ -298,7 +356,7 @@ class SupervisorTests(unittest.TestCase):
         self.session.volume_tool = Mock()
         with self.assertRaises((OSError, RuntimeError)):
             self.session.cleanup()
-        self.assertEqual(self.session.volume_tool.call_count, 5, 'HID close failure prevented route cleanup')
+        self.assertEqual(self.session.volume_tool.call_count, 3, 'HID close failure prevented route cleanup')
 
     def test_main_cleanup_failure_sets_error_and_cleanup_incomplete(self):
         launch_path = self.run / 'launch.json'

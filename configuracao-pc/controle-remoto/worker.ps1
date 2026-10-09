@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $audioDir = Split-Path $PSScriptRoot
 . (Join-Path $audioDir 'LFE equalizador comum.ps1')
+. (Join-Path $audioDir 'CM6206 controlador comum.ps1')
 Add-Type -Path (Join-Path $PSScriptRoot 'UniversalRemote.cs')
 $script:mediaError = $null
 $script:manager = $null
@@ -104,13 +105,14 @@ function Invoke-AudioScript([string]$Script,[string[]]$Arguments,[int]$TimeoutMs
 }
 function Set-Cm6206MasterVolume([int]$Percent,[bool]$Muted) {
     if ($Percent -lt 0 -or $Percent -gt 100) {throw 'Use volume de 0 a 100%.'}
-    $manager=[IO.Path]::GetFullPath((Join-Path $audioDir '..\scripts\pc-cm6206-system.ps1'))
+    $locations=Resolve-Cm6206ControllerLocations $audioDir
+    $manager=$locations.ControllerPath
     if (-not [IO.File]::Exists($manager)) {throw 'Gerenciador CM6206 ausente.'}
     $gain=($Percent/100.0).ToString('0.00',[Globalization.CultureInfo]::InvariantCulture)
     $muteLiteral=if ($Muted) {'$true'} else {'$false'}
     # Windows PowerShell -File does not parse Boolean literals for [bool].
     # -Command receives only a quoted local path, a bounded number and a Boolean.
-    $command="& '"+$manager.Replace("'","''")+"' -Action Configure -Gain "+$gain+' -Muted '+$muteLiteral
+    $command="& '"+$manager.Replace("'","''")+"' -ConfigPath '"+$locations.ControllerConfigPath.Replace("'","''")+"' -Action Configure -Gain "+$gain+' -Muted '+$muteLiteral
     $start=[Diagnostics.ProcessStartInfo]::new('powershell.exe')
     $start.Arguments='-NoLogo -NoProfile -ExecutionPolicy Bypass -Command "'+$command+'"'
     $start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
@@ -136,7 +138,10 @@ while ($null -ne ($line=[Console]::ReadLine())) {
                 try { $sessions=@(Get-MediaSessions) } catch { $mediaError=$_.Exception.Message }
                 if(-not $script:audioSnapshot -or ([DateTime]::UtcNow-$script:audioSnapshotAt).TotalSeconds -ge 5) {
                     $audioStatus=$null;$audioError=$null
-                    try {$audioStatus=(Invoke-AudioScript 'Controle do sistema 5.1.ps1' @('-Acao','Status') 6000) | ConvertFrom-Json} catch {$audioError=$_.Exception.Message}
+                    try {
+                        $locations=Resolve-Cm6206ControllerLocations $audioDir
+                        $audioStatus=Read-Cm6206ControllerStatus $locations.ControllerStatePath
+                    } catch {$audioError=$_.Exception.Message}
                     $script:audioSnapshot=@{Status=$audioStatus;Error=$audioError};$script:audioSnapshotAt=[DateTime]::UtcNow
                 }
                 $volume=10;$muted=$false

@@ -17,6 +17,7 @@ jobs:
       - run: npm run test:netflix
       - run: node scripts/verificar-publicacao.mjs
       - run: python scripts/tests/test_cm6206_engine.py
+      - run: python scripts/test-cm6206-app-routing.py
   relay-windows:
     runs-on: windows-latest
     steps:
@@ -28,6 +29,7 @@ jobs:
         shell: powershell
         run: |
           .\scripts\test-cm6206-system-state.ps1
+          .\scripts\test-cm6206-controller-locations.ps1
           .\scripts\test-cm6206-remote-volume.ps1
           .\scripts\test-audio-panel-refresh.ps1
           .\scripts\optical-tests\test-continuous-spdif-relay.ps1

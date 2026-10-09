@@ -10,6 +10,8 @@ param(
     [ValidateRange(0,1)][double]$Gain=0.1,
     [ValidateSet('Auto','Stereo','Native')][string]$InputMode='Auto',
     [ValidateRange(-36,0)][double]$CenterTrimDb=-12,
+    [ValidateRange(-18,6)][double]$LfeTrimDb=0,
+    [ValidateRange(0,1)][double]$CenterBassSend=1,
     [ValidatePattern('^\d{1,5}(,\d{1,5}){5}$')][string]$DelaySamplesCsv='3686,3686,278,278,3408,3408',
     [switch]$SwapCenterLfe,
     [switch]$Shared,
@@ -46,8 +48,12 @@ function Invoke-VolumeTool([string[]]$Arguments) {
     if($process.ExitCode -ne 0){throw ('SoundVolumeView falhou: '+$process.ExitCode)}
 }
 try {
-    $locked=$mutex.WaitOne(0)
-    if(-not $locked){throw 'A rota PCM já está aberta.'}
+    # A unique caller-provided validation directory cannot overwrite the live
+    # graph. Allow file-only graph generation while an owned relay is running.
+    if(-not($ValidateOnly -and $SkipRouting -and $OutputDirectory)){
+        $locked=$mutex.WaitOne(0)
+        if(-not $locked){throw 'A rota PCM já está aberta.'}
+    }
     Add-Type -Path @((Join-Path $projectRoot 'configuracao-pc/StereoUpmix.cs'),(Join-Path $projectRoot 'configuracao-pc/RelayLoopback.cs'),(Join-Path $projectRoot 'configuracao-pc/RelayLoopbackLowLatency.cs'))
     [RelayLoopbackLowLatency]::VerifySourceFormat($CaptureEndpointId)
     if(-not $SkipRouting){
@@ -65,22 +71,26 @@ try {
     # Auto preserves this six-slot capture. Upmix can run before the system mix
     # only when the APO sees an actual 1/2-channel stream. Browsers may already
     # publish six slots for stereo; silence in four slots is never proof of stereo.
-    # Stereo is an explicit override for a source independently known as stereo.
+    # Stereo is an explicit override for independently confirmed non-Dolby stereo.
+    # Never select it for AC-3/E-AC-3, even when those codecs contain two channels.
     [IO.File]::WriteAllText((Join-Path $outputDir 'audio-sistema.nativo'),'native')
     $gainLiteral='1'
     # mpv software volume is cubic: convert the linear DSP gain to its UI scale.
     $volumeLiteral=([Math]::Pow($Gain,1.0/3.0)*100).ToString('0.########',[Globalization.CultureInfo]::InvariantCulture)
     $centerGain=[Math]::Pow(10,$CenterTrimDb/20).ToString('0.########',[Globalization.CultureInfo]::InvariantCulture)
+    $sendLiteral=$CenterBassSend.ToString('0.########',[Globalization.CultureInfo]::InvariantCulture)
+    $lfeScale=(1.0/(5+$CenterBassSend)).ToString('0.#############',[Globalization.CultureInfo]::InvariantCulture)
+    $lfeGain=[Math]::Pow(10,$LfeTrimDb/20).ToString('0.########',[Globalization.CultureInfo]::InvariantCulture)
     # LR4 of five satellites. Sum their lows into LFE with a six-source bound;
     # no positive EQ. Center trim protects the YS module at initial playback.
     $graph='asplit=2[main][sats];[main]pan=5.1|c0=0*c0|c1=0*c1|c2=0*c2|c3=c3|c4=0*c4|c5=0*c5[lfe];'+
         '[sats]pan=5c|c0=c0|c1=c1|c2=c2|c3=c4|c4=c5,acrossover=split='+$CrossoverHz+':order=4th:precision=double[low][high];'+
-        '[low]pan=5.1|c0=0*c0|c1=0*c1|c2=0*c2|c3=c0+c1+c2+c3+c4|c4=0*c3|c5=0*c4[bass];'+
+        '[low]pan=5.1|c0=0*c0|c1=0*c1|c2=0*c2|c3=c0+c1+'+$sendLiteral+'*c2+c3+c4|c4=0*c3|c5=0*c4[bass];'+
         '[high]pan=5.1|c0=c0|c1=c1|c2=c2|c3=0*c0|c4=c3|c5=c4[top];'+
         '[lfe][bass][top]amix=inputs=3:normalize=0:dropout_transition=0,'+
         'adelay='+ (($delaySamples|ForEach-Object {[string]$_+'S'}) -join '|')+','+
-        'pan=5.1|c0=c0|c1=c1|c2='+$centerGain+'*c2|c3=0.1666666666667*c3|c4=c4|c5=c5,'+
-        'highpass=f=20:p=2:c=LFE,volume='+$gainLiteral+':precision=double,'+
+        'pan=5.1|c0=c0|c1=c1|c2='+$centerGain+'*c2|c3='+$lfeScale+'*c3|c4=c4|c5=c5,'+
+        'highpass=f=20:p=2:c=LFE,pan=5.1|c0=c0|c1=c1|c2=c2|c3='+$lfeGain+'*c3|c4=c4|c5=c5,volume='+$gainLiteral+':precision=double,'+
         'pan=7.1|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c4|c7=c5'
     if($InputMode -eq 'Stereo') {
         $graph='pan=5.1|c0=c0|c1=c1|c2=0.5*c0+0.5*c1|c3=0.25*c0+0.25*c1|c4=0.5*c0|c5=0.5*c1,'+
