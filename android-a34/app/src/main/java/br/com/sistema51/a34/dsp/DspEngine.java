@@ -21,6 +21,8 @@ public final class DspEngine {
     private int gainRampRemaining;
     private double generalEqGain=1,generalEqGainTarget=1,generalEqGainStep;
     private int generalEqGainRemaining;
+    private double centerToFrontGain,centerToFrontGainTarget,centerToFrontGainStep;
+    private int centerToFrontGainRemaining;
     private final Biquad[] eq = new Biquad[AudioProfile.EQ_BAND_COUNT];
     private final Biquad[][] generalEq=new Biquad[CHANNEL_COUNT][AudioProfile.GENERAL_EQ_BAND_COUNT];
     private final Biquad[] surroundLow = filters(4), surroundHigh = filters(4);
@@ -91,6 +93,10 @@ public final class DspEngine {
             for(int c=0;c<CHANNEL_COUNT;c++)if(generalEq[c][b].active()){generalEqMask|=1<<b;break;}
         for (int f = 0, inputIndex = 0, outputIndex = 0; f < frames;
              f++, inputIndex += inputChannels, outputIndex += CHANNEL_COUNT) {
+            if(centerToFrontGainRemaining>0){
+                centerToFrontGain+=centerToFrontGainStep;
+                if(--centerToFrontGainRemaining==0)centerToFrontGain=centerToFrontGainTarget;
+            }
             if (inputChannels == CHANNEL_COUNT) {
                 for (int c = 0; c < CHANNEL_COUNT; c++) frame[c] = finiteInput(input[inputIndex + c]);
             } else {
@@ -123,6 +129,13 @@ public final class DspEngine {
                 if (p.isCenterBassCopyEnabled() && !p.isFrontCrossoverEnabled()) {
                     frame[AudioProfile.LFE] += p.getCenterBassSend()
                             * cascade(centerLow, 0, frame[AudioProfile.FC]);
+                }
+                // Duplicate only the discrete 5.1 center channel. The original center
+                // remains untouched; each copy then receives its own front delay/trim.
+                if(inputChannels==CHANNEL_COUNT&&centerToFrontGain!=0){
+                    double center=frame[AudioProfile.FC]*centerToFrontGain;
+                    frame[AudioProfile.FL]+=center;
+                    frame[AudioProfile.FR]+=center;
                 }
                 // Copy bass before delays: copied material follows the LFE delay.
                 for (int c = 0; c < CHANNEL_COUNT; c++) {
@@ -188,6 +201,11 @@ public final class DspEngine {
         }
         if(ramp&&gainChanged){gainRampRemaining=480;for(int c=0;c<CHANNEL_COUNT;c++)gainStep[c]=(targetGain[c]-outputGain[c])/480;}
         else if(!ramp){gainRampRemaining=0;System.arraycopy(targetGain,0,outputGain,0,CHANNEL_COUNT);}
+        centerToFrontGainTarget=next.profile.getCenterToFrontGain();
+        if(ramp&&centerToFrontGainTarget!=centerToFrontGain){
+            centerToFrontGainRemaining=480;
+            centerToFrontGainStep=(centerToFrontGainTarget-centerToFrontGain)/480;
+        }else if(!ramp){centerToFrontGainRemaining=0;centerToFrontGain=centerToFrontGainTarget;}
         // Gain, headroom, mute and trims do not destroy delay/filter histories.
         boolean changedTopology = active == null || graphChanged(active.profile, next.profile);
         if(changedTopology||framesProcessed==0){generalEqGainRemaining=0;generalEqGain=generalEqGainTarget=next.generalEqHeadroom;}

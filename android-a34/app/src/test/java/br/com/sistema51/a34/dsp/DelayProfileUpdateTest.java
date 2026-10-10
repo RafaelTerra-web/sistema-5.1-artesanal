@@ -11,7 +11,7 @@ public final class DelayProfileUpdateTest {
                 .frontCutoffHz(105).frontBassSend(.4f).lfeSubsonicEnabled(true).lfeSubsonicHz(30)
                 .swapCenterLfe(true).lfeEqEnabled(false).lfeHeadroom(.15f).automaticLfeHeadroom(false)
                 .surroundCrossoverEnabled(false).surroundCutoffHz(100).surroundBassSend(.6f)
-                .centerBassCopyEnabled(true).centerBassCutoffHz(80).centerBassSend(.7f);
+                .centerBassCopyEnabled(true).centerBassCutoffHz(80).centerBassSend(.7f).centerToFrontGain(.62f);
         for(int c=0;c<6;c++)builder.channelTrim(c,.2f+c*.1f).delaySamples(c,c*100);
         for(int band=0;band<9;band++)builder.lfeEqFrequencyHz(band,15+band*15).lfeEqGainDb(band,band-8).lfeEqQ(band,1+band*.3f);
         AudioProfile before=builder.build();
@@ -24,6 +24,7 @@ public final class DelayProfileUpdateTest {
         assertEquals(before.isFrontCrossoverEnabled(),after.isFrontCrossoverEnabled());assertEquals(before.getFrontCutoffHz(),after.getFrontCutoffHz(),0);assertEquals(before.getFrontBassSend(),after.getFrontBassSend(),0);assertEquals(before.isLfeSubsonicEnabled(),after.isLfeSubsonicEnabled());assertEquals(before.getLfeSubsonicHz(),after.getLfeSubsonicHz(),0);assertEquals(before.isSwapCenterLfe(),after.isSwapCenterLfe());
         assertEquals(before.isLfeEqEnabled(),after.isLfeEqEnabled());assertEquals(before.getLfeHeadroom(),after.getLfeHeadroom(),0);assertEquals(before.isAutomaticLfeHeadroom(),after.isAutomaticLfeHeadroom());assertEquals(before.getEffectiveLfeHeadroom(),after.getEffectiveLfeHeadroom(),0);
         assertEquals(before.isSurroundCrossoverEnabled(),after.isSurroundCrossoverEnabled());assertEquals(before.getSurroundCutoffHz(),after.getSurroundCutoffHz(),0);assertEquals(before.getSurroundBassSend(),after.getSurroundBassSend(),0);assertEquals(before.isCenterBassCopyEnabled(),after.isCenterBassCopyEnabled());assertEquals(before.getCenterBassCutoffHz(),after.getCenterBassCutoffHz(),0);assertEquals(before.getCenterBassSend(),after.getCenterBassSend(),0);
+        assertEquals(before.getCenterToFrontGain(),after.getCenterToFrontGain(),0);
         for(int band=0;band<9;band++){assertEquals(before.getLfeEqFrequencyHz(band),after.getLfeEqFrequencyHz(band),0);assertEquals(before.getLfeEqGainDb(band),after.getLfeEqGainDb(band),0);assertEquals(before.getLfeEqQ(band),after.getLfeEqQ(band),0);}
     }
     @Test public void invalidDelayListsAreRejectedBeforeChangingTheProfile() {

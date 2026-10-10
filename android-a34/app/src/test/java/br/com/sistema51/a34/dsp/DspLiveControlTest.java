@@ -3,7 +3,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import static org.junit.Assert.*;
 public final class DspLiveControlTest {
-    private AudioProfile flat(){AudioProfile.Builder b=AudioProfile.builder().masterGain(.5f).lfeEqEnabled(false).surroundCrossoverEnabled(false).automaticLfeHeadroom(false).lfeHeadroom(1);for(int c=0;c<6;c++)b.delaySamples(c,0);return b.build();}
+    private AudioProfile flat(){AudioProfile.Builder b=AudioProfile.builder().masterGain(.5f).lfeEqEnabled(false).surroundCrossoverEnabled(false).automaticLfeHeadroom(false).lfeHeadroom(1).centerToFrontGain(0);for(int c=0;c<6;c++)b.delaySamples(c,0);return b.build();}
     @Test public void gainRampIsContinuousAndMuteIsImmediate(){
         DspEngine e=new DspEngine(480);AudioProfile p=flat();e.setProfile(p);
         float[] in=new float[480*6],out=new float[480*6];Arrays.fill(in,.5f);e.process(in,6,out,480);

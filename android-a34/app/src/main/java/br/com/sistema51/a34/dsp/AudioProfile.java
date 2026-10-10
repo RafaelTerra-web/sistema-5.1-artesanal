@@ -25,6 +25,7 @@ public final class AudioProfile {
     private final boolean surroundCrossoverEnabled, centerBassCopyEnabled;
     private final float surroundCutoffHz, surroundBassSend;
     private final float centerBassCutoffHz, centerBassSend;
+    private final float centerToFrontGain;
     private final float effectiveLfeHeadroom;
     private final float upmixCenterGain, upmixSurroundGain, upmixBassGain, upmixDifference, upmixBassCutoffHz;
     private final boolean frontCrossoverEnabled, lfeSubsonicEnabled, swapCenterLfe;
@@ -75,6 +76,7 @@ public final class AudioProfile {
         centerBassCopyEnabled = b.centerBassCopyEnabled;
         centerBassCutoffHz = range("centerBassCutoffHz", b.centerBassCutoffHz, 40, 120);
         centerBassSend = range("centerBassSend", b.centerBassSend, 0, 1);
+        centerToFrontGain = range("centerToFrontGain", b.centerToFrontGain, 0, 1);
         if (automaticLfeHeadroom) {
             double positiveDb = 0;
             if (lfeEqEnabled) {
@@ -130,6 +132,8 @@ public final class AudioProfile {
     public boolean isCenterBassCopyEnabled() { return centerBassCopyEnabled; }
     public float getCenterBassCutoffHz() { return centerBassCutoffHz; }
     public float getCenterBassSend() { return centerBassSend; }
+    /** Linear copy of discrete center audio into each front channel; does not attenuate center. */
+    public float getCenterToFrontGain() { return centerToFrontGain; }
     public int getRequiredInputChannels() { return inputMode == InputMode.NATIVE_5_1 ? 6 : 2; }
     /** Resolve only from trustworthy decoded file/transport metadata, never meters. */
     public AudioProfile forSourceChannels(int channels) {
@@ -177,6 +181,7 @@ public final class AudioProfile {
         private boolean surroundCrossoverEnabled = true, centerBassCopyEnabled;
         private float surroundCutoffHz = 90, surroundBassSend = 1;
         private float centerBassCutoffHz = 120, centerBassSend = 1;
+        private float centerToFrontGain = .35f;
 
         private Builder() { }
         private Builder(AudioProfile p) {
@@ -200,6 +205,7 @@ public final class AudioProfile {
             surroundCutoffHz = p.surroundCutoffHz; surroundBassSend = p.surroundBassSend;
             centerBassCopyEnabled = p.centerBassCopyEnabled;
             centerBassCutoffHz = p.centerBassCutoffHz; centerBassSend = p.centerBassSend;
+            centerToFrontGain = p.centerToFrontGain;
         }
 
         public Builder masterGain(float value) { masterGain = value; return this; }
@@ -233,6 +239,7 @@ public final class AudioProfile {
         public Builder centerBassCopyEnabled(boolean value) { centerBassCopyEnabled = value; return this; }
         public Builder centerBassCutoffHz(float value) { centerBassCutoffHz = value; return this; }
         public Builder centerBassSend(float value) { centerBassSend = value; return this; }
+        public Builder centerToFrontGain(float value) { centerToFrontGain = value; return this; }
         public AudioProfile build() { return new AudioProfile(this); }
     }
 }

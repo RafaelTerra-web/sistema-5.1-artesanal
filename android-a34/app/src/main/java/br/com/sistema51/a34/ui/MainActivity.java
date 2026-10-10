@@ -497,6 +497,12 @@ public final class MainActivity extends Activity {
         }
         addCard(timing);
 
+        LinearLayout centerRoute = card();
+        heading(centerRoute, "Roteamento da central", "Copia o CEN de uma fonte 5.1 nativa para as duas frontais. A central original mantém o volume; o slider regula apenas o sinal enviado às frontais.");
+        addSlider(centerRoute, "Envio central → frontais", (float) profile.optDouble("centerToFrontGain", .35) * 100, 0, 100, 1, "%", value -> { put("centerToFrontGain", value / 100); changed(); });
+        centerRoute.addView(text("Atua somente em áudio 5.1 discreto; não altera o upmix estéreo. Comece baixo para evitar excesso de nível nas frontais.", 12, MUTED));
+        addCard(centerRoute);
+
         LinearLayout bass = card();
         heading(bass, "Gerenciamento de graves", "As cópias de graves são somadas ao LFE. A margem evita ganho excessivo.");
         addToggle(bass,"Trocar CEN/BASS na saída USB","Use apenas se um teste físico confirmar canais invertidos; a ligação no R não determina o mapa USB.","swapCenterLfe",false);

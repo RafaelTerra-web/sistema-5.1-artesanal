@@ -69,6 +69,7 @@ public abstract class AppBridge {
             p.put("centerBassCopyEnabled", false);
             p.put("centerBassCutoffHz", 120);
             p.put("centerBassSend", 1);
+            p.put("centerToFrontGain", 0.35);
         } catch (JSONException impossible) {
             throw new IllegalStateException(impossible);
         }

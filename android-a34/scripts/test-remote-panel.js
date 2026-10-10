@@ -20,7 +20,7 @@ const evaluate=code=>vm.runInContext(code,context);
 const profileFixture={masterGain:.08,muted:false,bypass:false,inputMode:'NATIVE_5_1',channelTrim:[1,1,1,1,1,1],delaySamples:[0,0,0,0,0,0],
  upmixCenterGain:1,upmixSurroundGain:.5,upmixBassGain:.5,upmixDifference:0,upmixBassCutoffHz:120,
  frontCrossoverEnabled:false,frontCutoffHz:90,frontBassSend:1,surroundCrossoverEnabled:false,surroundCutoffHz:90,surroundBassSend:1,
- centerBassCopyEnabled:false,centerBassCutoffHz:120,centerBassSend:1,lfeSubsonicEnabled:false,lfeSubsonicHz:20,swapCenterLfe:false,
+ centerBassCopyEnabled:false,centerBassCutoffHz:120,centerBassSend:1,centerToFrontGain:.35,lfeSubsonicEnabled:false,lfeSubsonicHz:20,swapCenterLfe:false,
  generalEqEnabled:true,generalEqGainDb:Array(10).fill(0),lfeEqEnabled:true,automaticLfeHeadroom:false,lfeHeadroom:1/3,
  lfeEqFrequenciesHz:[20,25,30,40,50,60,80,100,120],lfeEqGainDb:[0,0,0,0,0,0,0,0,0],lfeEqQ:Array(9).fill(2)};
 const snapshot=(revision,values={})=>{const {profile={},...rest}=values;return {controlSession:'same-session',profileRevision:revision,profile:{...profileFixture,...profile},
@@ -68,6 +68,8 @@ async function run(){
  }
  const eqSlider=findInputs('generalEqGainDb')[5];assert.equal(eqSlider.type,'range');eqSlider.value='3';await eqSlider.listeners.change();
  assert.equal(serverProfile.generalEqGainDb[5],3,'graphic EQ stores the entered dB value');
+ const centerToFront=findInputs('centerToFrontGain')[0];assert.equal(centerToFront.type,'range');assert.equal(centerToFront.value,'35','center routing slider uses a readable percentage scale');centerToFront.value='62';await centerToFront.listeners.change();
+ assert.equal(serverProfile.centerToFrontGain,.62,'center routing slider persists linear gain without attenuating the center channel');
  const lfeGain=findInputs('lfeEqGainDb')[4];lfeGain.value='3';await lfeGain.listeners.change();
  assert.equal(evaluate('pending.lfeEqGainDb[4]'),3,'LFE EQ dB is not converted as linear volume');
  serverProfile.lfeEqGainDb[0]=-4;
@@ -155,6 +157,6 @@ async function run(){
  await nodes.get('disconnect').listeners.click();
  finishLogin({ok:true,status:200,json:async()=>({sessionToken:'late-token',expiresInSeconds:43200})});await lateLogin;
  assert.equal(evaluate('token'),'');assert.equal(nodes.get('panel').hidden,true);
- console.log('Remote panel: four-digit unlock, six channel sliders, general EQ, route permissions, source policy, mute and response ordering passed.');
+ console.log('Remote panel: four-digit unlock, six channel sliders, general EQ, center-to-front slider, route permissions, source policy, mute and response ordering passed.');
 }
 run().catch(error=>{console.error(error);process.exitCode=1;});

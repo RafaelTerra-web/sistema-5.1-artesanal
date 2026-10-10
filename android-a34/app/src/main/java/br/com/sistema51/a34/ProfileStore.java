@@ -69,7 +69,8 @@ public final class ProfileStore {
                     .surroundBassSend(number(json, "surroundBassSend", defaults.getSurroundBassSend()))
                     .centerBassCopyEnabled(json.optBoolean("centerBassCopyEnabled", defaults.isCenterBassCopyEnabled()))
                     .centerBassCutoffHz(number(json, "centerBassCutoffHz", defaults.getCenterBassCutoffHz()))
-                    .centerBassSend(number(json, "centerBassSend", defaults.getCenterBassSend()));
+                    .centerBassSend(number(json, "centerBassSend", defaults.getCenterBassSend()))
+                    .centerToFrontGain(number(json, "centerToFrontGain", defaults.getCenterToFrontGain()));
             JSONArray trims = array(json, "channelTrim", "channelTrims", 6);
             JSONArray delays = array(json, "delaySamples", "delaysSamples", 6);
             JSONArray gains = array(json, "lfeEqGainDb", "lfeEqGainsDb", 9);
@@ -114,7 +115,8 @@ public final class ProfileStore {
                     .put("lfeHeadroom", p.getLfeHeadroom()).put("automaticLfeHeadroom", p.isAutomaticLfeHeadroom())
                     .put("effectiveLfeHeadroom", p.getEffectiveLfeHeadroom())
                     .put("surroundCrossoverEnabled", p.isSurroundCrossoverEnabled()).put("surroundCutoffHz", p.getSurroundCutoffHz()).put("surroundBassSend", p.getSurroundBassSend())
-                    .put("centerBassCopyEnabled", p.isCenterBassCopyEnabled()).put("centerBassCutoffHz", p.getCenterBassCutoffHz()).put("centerBassSend", p.getCenterBassSend());
+                    .put("centerBassCopyEnabled", p.isCenterBassCopyEnabled()).put("centerBassCutoffHz", p.getCenterBassCutoffHz()).put("centerBassSend", p.getCenterBassSend())
+                    .put("centerToFrontGain", p.getCenterToFrontGain());
         } catch (JSONException e) { throw new IllegalStateException(e); }
     }
     private static float number(JSONObject json, String key, float fallback) throws JSONException {

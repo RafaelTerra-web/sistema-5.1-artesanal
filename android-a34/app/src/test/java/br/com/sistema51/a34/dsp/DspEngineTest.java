@@ -16,10 +16,11 @@ public final class DspEngineTest {
         generalEqAcrossAllChannels();
         crossoverAmplitudeAndBassTiming();
         centerCopyLeavesCenterFullRange();
+        discreteCenterToFronts();
         headroomAndFiniteOutput();
         profileChangesAndReset();
         blockPartitionInvariance();
-        System.out.println("DSP JVM acceptance: PASS (" + checks + " assertions / 12 scenarios)");
+        System.out.println("DSP JVM acceptance: PASS (" + checks + " assertions / 13 scenarios)");
     }
 
     private static void defaultsAndValidation() {
@@ -32,6 +33,7 @@ public final class DspEngineTest {
         }
         truth("auto headroom default", p.isAutomaticLfeHeadroom());
         truth("center copy explicit off", !p.isCenterBassCopyEnabled());
+        close("center front send default", .35, p.getCenterToFrontGain(), 1e-8);
         close("default crossover", 90, p.getSurroundCutoffHz(), 0);
         close("headroom sums positive overlapping bands", Math.pow(10, -27.0 / 20) / 3,
                 p.getEffectiveLfeHeadroom(), 1e-9);
@@ -61,6 +63,8 @@ public final class DspEngineTest {
         rejects("surround send bound", () -> AudioProfile.builder().surroundBassSend(1.01f).build());
         rejects("center cutoff bound", () -> AudioProfile.builder().centerBassCutoffHz(39).build());
         rejects("center send nonfinite", () -> AudioProfile.builder().centerBassSend(Float.NEGATIVE_INFINITY).build());
+        rejects("center to front gain upper bound", () -> AudioProfile.builder().centerToFrontGain(1.01f).build());
+        rejects("center to front gain nonfinite", () -> AudioProfile.builder().centerToFrontGain(Float.NaN).build());
         rejects("mode null", () -> AudioProfile.builder().inputMode(null).build());
     }
 
@@ -211,6 +215,30 @@ public final class DspEngineTest {
         close("center original impulse preserved", 0.2f, out[278 * 6 + 2], 0);
     }
 
+    private static void discreteCenterToFronts() {
+        AudioProfile p=flat().toBuilder().centerToFrontGain(.5f)
+                .delaySamples(AudioProfile.FL,3).delaySamples(AudioProfile.FR,5).delaySamples(AudioProfile.FC,7).build();
+        float[] impulse=new float[12*6];impulse[AudioProfile.FC]=.4f;
+        float[] out=render(impulse,6,p,12);
+        for(int f=0;f<12;f++){
+            close("center send follows independent FL delay",f==3?.2:0,out[f*6+AudioProfile.FL],1e-8);
+            close("center send follows independent FR delay",f==5?.2:0,out[f*6+AudioProfile.FR],1e-8);
+            close("center output keeps original level and delay",f==7?.4:0,out[f*6+AudioProfile.FC],1e-8);
+        }
+        close("center contributes equally to left front",.5,sineGain(flat().toBuilder().centerToFrontGain(.5f).build(),1000,2,0),2e-5);
+        close("center contributes equally to right front",.5,sineGain(flat().toBuilder().centerToFrontGain(.5f).build(),1000,2,1),2e-5);
+        close("stereo upmix does not loop its phantom center back into fronts",1,
+                stereoSineGain(flat().toBuilder().inputMode(AudioProfile.InputMode.STEREO_UPMIX).centerToFrontGain(1).build(),1000,0,0),2e-5);
+
+        DspEngine live=new DspEngine(480);live.setProfile(flat());float[] silence=new float[480*6],block=new float[480*6];
+        live.process(silence,6,block,480);
+        live.setProfile(flat().toBuilder().centerToFrontGain(1).build());
+        float[] monoCenter=new float[480*6];for(int f=0;f<480;f++)monoCenter[f*6+AudioProfile.FC]=.2f;
+        live.process(monoCenter,6,block,480);
+        truth("center send ramps smoothly over the first block",block[AudioProfile.FL]>.0001f&&block[AudioProfile.FL]<.01f);
+        close("center send ramp reaches target at 10 ms",.2,block[(479*6)+AudioProfile.FL],1e-7);
+    }
+
     private static void headroomAndFiniteOutput() {
         AudioProfile p = flat().toBuilder().surroundCrossoverEnabled(true).centerBassCopyEnabled(true)
                 .automaticLfeHeadroom(true).build();
@@ -276,7 +304,7 @@ public final class DspEngineTest {
     private static AudioProfile flat() {
         AudioProfile.Builder b = AudioProfile.builder().masterGain(1).muted(false).bypass(false)
                 .lfeEqEnabled(false).surroundCrossoverEnabled(false).centerBassCopyEnabled(false)
-                .automaticLfeHeadroom(false).lfeHeadroom(1);
+                .automaticLfeHeadroom(false).lfeHeadroom(1).centerToFrontGain(0);
         for (int c = 0; c < 6; c++) b.delaySamples(c, 0);
         return b.build();
     }
@@ -303,6 +331,16 @@ public final class DspEngineTest {
             outPower += out[f * 6 + outputChannel] * (double) out[f * 6 + outputChannel];
         }
         return Math.sqrt(outPower / inPower);
+    }
+    private static double stereoSineGain(AudioProfile p,double frequency,int inputChannel,int outputChannel){
+        int frames=96000;float[] input=new float[frames*2];
+        for(int f=0;f<frames;f++)input[f*2+inputChannel]=(float)(.05*Math.sin(2*Math.PI*frequency*f/48000));
+        float[] out=render(input,2,p,480);double inPower=0,outPower=0;
+        for(int f=48000;f<frames;f++){
+            inPower+=input[f*2+inputChannel]*(double)input[f*2+inputChannel];
+            outPower+=out[f*6+outputChannel]*(double)out[f*6+outputChannel];
+        }
+        return Math.sqrt(outPower/inPower);
     }
     private static void rejects(String label, Runnable action) {
         boolean rejected = false;

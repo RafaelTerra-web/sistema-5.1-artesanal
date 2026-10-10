@@ -20,9 +20,10 @@ O grafo segue esta ordem:
 1. Upmix, somente se solicitado para a fonte estéreo.
 2. Crossover LR4 das surrounds e envio da parte baixa ao LFE.
 3. Cópia opcional LR4 dos graves da central ao LFE, mantendo a central inteira.
-4. Atrasos individuais em amostras.
-5. Margem do LFE, nove biquads paramétricos RBJ.
-6. Trims individuais, master, mute e clamp final em `[-1, 1]`.
+4. Cópia opcional do canal CEN discreto para FL/FR, mantendo o canal central intacto; o ganho é regulável de 0 a 1 e muda com rampa de 10 ms.
+5. Atrasos individuais em amostras.
+6. Margem do LFE, nove biquads paramétricos RBJ.
+7. Trims individuais, master, mute e clamp final em `[-1, 1]`.
 
 O crossover usa duas etapas Butterworth de segunda ordem, Q = `sqrt(0.5)`, por ramo. Em 90 Hz cada ramo tem ganho 0,5 (-6,02 dB); a soma tem resposta all-pass. A cópia grave entra **antes** dos atrasos, seguindo o atraso do LFE e não o da caixa original. Filtros causais alteram fase mesmo quando o atraso explícito é zero. Os coeficientes low-pass, high-pass e peaking seguem o [Audio EQ Cookbook de Robert Bristow-Johnson, publicado pelo W3C](https://www.w3.org/TR/audio-eq-cookbook/).
 
@@ -45,6 +46,7 @@ engine.setProfile(profile.toBuilder()
 - Atrasos `[3686, 3686, 278, 0, 3408, 3408]`; faixa permitida 0–12.000 amostras (250 ms).
 - EQ LFE ativo: frequências `[20,25,30,40,50,60,80,100,120]` Hz, ganhos `[6,6,6,5.5,1.5,-4,1,1,-2.5]` dB, Q 2.
 - Surrounds: crossover ativo em 90 Hz, envio 1 (0 dB). Central: cópia desativada; corte 120 Hz e envio 1 quando ativada.
+- Cópia CEN → FL/FR: ganho inicial 0,35 (35%, cerca de −9 dB), editável no A34 e no painel remoto do A55; atua só em entrada 5.1 de seis canais e não reduz o canal central.
 - Margem automática ativada no app. Ganho manual 1/3 disponível ao desativar a opção automática.
 - Master e margem manual: 0–1; trims: 0–4; envios de graves: 0–1; cortes: 40–120 Hz; EQ: frequência 10–200 Hz, ganho -12–6 dB, Q 0,3–10. NaN/infinito são rejeitados no perfil.
 

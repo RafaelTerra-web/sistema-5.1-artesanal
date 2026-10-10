@@ -5,7 +5,7 @@ import static org.junit.Assert.*;
 public final class FrontBassTest {
     private static AudioProfile flat(){
         AudioProfile.Builder b=AudioProfile.defaultProfile().toBuilder().masterGain(1).lfeEqEnabled(false)
-            .surroundCrossoverEnabled(false).centerBassCopyEnabled(false).automaticLfeHeadroom(false).lfeHeadroom(1);
+            .surroundCrossoverEnabled(false).centerBassCopyEnabled(false).automaticLfeHeadroom(false).lfeHeadroom(1).centerToFrontGain(0);
         for(int c=0;c<6;c++)b.delaySamples(c,0);
         return b.build();
     }
