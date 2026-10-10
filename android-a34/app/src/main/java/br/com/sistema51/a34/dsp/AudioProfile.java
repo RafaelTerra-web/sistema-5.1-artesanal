@@ -5,6 +5,7 @@ public final class AudioProfile {
     public static final int SAMPLE_RATE = 48000;
     public static final int CHANNEL_COUNT = 6;
     public static final int EQ_BAND_COUNT = 9;
+    public static final int GENERAL_EQ_BAND_COUNT = 10;
     public static final int MAX_DELAY_SAMPLES = SAMPLE_RATE / 4;
     public static final int FL = 0, FR = 1, FC = 2, LFE = 3, SL = 4, SR = 5;
 
@@ -17,6 +18,8 @@ public final class AudioProfile {
     private final int[] delays;
     private final boolean lfeEqEnabled;
     private final float[] eqFrequencies, eqGains, eqQ;
+    private final boolean generalEqEnabled;
+    private final float[] generalEqGains;
     private final float lfeHeadroom;
     private final boolean automaticLfeHeadroom;
     private final boolean surroundCrossoverEnabled, centerBassCopyEnabled;
@@ -61,6 +64,9 @@ public final class AudioProfile {
             range("lfeEqGainDb", eqGains[i], -12, 6);
             range("lfeEqQ", eqQ[i], 0.3f, 10);
         }
+        generalEqEnabled=b.generalEqEnabled;
+        generalEqGains=b.generalEqGains.clone();
+        for(int i=0;i<GENERAL_EQ_BAND_COUNT;i++)range("generalEqGainDb",generalEqGains[i],-12,6);
         lfeHeadroom = range("lfeHeadroom", b.lfeHeadroom, 0, 1);
         automaticLfeHeadroom = b.automaticLfeHeadroom;
         surroundCrossoverEnabled = b.surroundCrossoverEnabled;
@@ -109,6 +115,10 @@ public final class AudioProfile {
     public float getLfeEqGainDb(int band) { return eqGains[bandIndex(band)]; }
     public float getLfeEqFrequencyHz(int band) { return eqFrequencies[bandIndex(band)]; }
     public float getLfeEqQ(int band) { return eqQ[bandIndex(band)]; }
+    public boolean isGeneralEqEnabled(){return generalEqEnabled;}
+    public float getGeneralEqGainDb(int band){return generalEqGains[generalEqBandIndex(band)];}
+    public static float getGeneralEqFrequencyHz(int band){return GENERAL_EQ_FREQUENCIES[generalEqBandIndex(band)];}
+    public static float getGeneralEqQ(){return 1.41421356f;}
     /** Manual gain, ignored while automatic headroom is enabled. */
     public float getLfeHeadroom() { return lfeHeadroom; }
     public boolean isAutomaticLfeHeadroom() { return automaticLfeHeadroom; }
@@ -136,6 +146,8 @@ public final class AudioProfile {
         if (band < 0 || band >= EQ_BAND_COUNT) throw new IllegalArgumentException("band must be 0..8");
         return band;
     }
+    private static final float[] GENERAL_EQ_FREQUENCIES={31.5f,63,125,250,500,1000,2000,4000,8000,16000};
+    private static int generalEqBandIndex(int band){if(band<0||band>=GENERAL_EQ_BAND_COUNT)throw new IllegalArgumentException("general EQ band must be 0..9");return band;}
     private static float range(String name, float value, float min, float max) {
         if (Float.isNaN(value) || Float.isInfinite(value) || value < min || value > max) {
             throw new IllegalArgumentException(name + " must be finite and between " + min + " and " + max);
@@ -158,6 +170,8 @@ public final class AudioProfile {
         private final float[] eqFrequencies = {20, 25, 30, 40, 50, 60, 80, 100, 120};
         private final float[] eqGains = {6, 6, 6, 5.5f, 1.5f, -4, 1, 1, -2.5f};
         private final float[] eqQ = {2, 2, 2, 2, 2, 2, 2, 2, 2};
+        private boolean generalEqEnabled=true;
+        private final float[] generalEqGains=new float[GENERAL_EQ_BAND_COUNT];
         private float lfeHeadroom = 1f / 3f;
         private boolean automaticLfeHeadroom = true;
         private boolean surroundCrossoverEnabled = true, centerBassCopyEnabled;
@@ -179,6 +193,8 @@ public final class AudioProfile {
             System.arraycopy(p.eqFrequencies, 0, eqFrequencies, 0, EQ_BAND_COUNT);
             System.arraycopy(p.eqGains, 0, eqGains, 0, EQ_BAND_COUNT);
             System.arraycopy(p.eqQ, 0, eqQ, 0, EQ_BAND_COUNT);
+            generalEqEnabled=p.generalEqEnabled;
+            System.arraycopy(p.generalEqGains,0,generalEqGains,0,GENERAL_EQ_BAND_COUNT);
             lfeHeadroom = p.lfeHeadroom; automaticLfeHeadroom = p.automaticLfeHeadroom;
             surroundCrossoverEnabled = p.surroundCrossoverEnabled;
             surroundCutoffHz = p.surroundCutoffHz; surroundBassSend = p.surroundBassSend;
@@ -207,6 +223,8 @@ public final class AudioProfile {
         public Builder lfeEqGainDb(int band, float value) { eqGains[bandIndex(band)] = value; return this; }
         public Builder lfeEqFrequencyHz(int band, float value) { eqFrequencies[bandIndex(band)] = value; return this; }
         public Builder lfeEqQ(int band, float value) { eqQ[bandIndex(band)] = value; return this; }
+        public Builder generalEqEnabled(boolean value){generalEqEnabled=value;return this;}
+        public Builder generalEqGainDb(int band,float value){generalEqGains[generalEqBandIndex(band)]=value;return this;}
         public Builder lfeHeadroom(float value) { lfeHeadroom = value; return this; }
         public Builder automaticLfeHeadroom(boolean value) { automaticLfeHeadroom = value; return this; }
         public Builder surroundCrossoverEnabled(boolean value) { surroundCrossoverEnabled = value; return this; }

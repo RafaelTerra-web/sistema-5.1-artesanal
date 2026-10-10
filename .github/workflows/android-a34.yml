@@ -22,7 +22,9 @@ jobs:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Preparar SDK
-        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
+      - name: Compilar decoder AC-3 de fonte verificada
+        run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973" bash android-a34/scripts/build-ac3-dependency.sh
       - name: Compilar e verificar
         working-directory: android-a34
-        run: sh gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --console=plain
+        run: sh gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :controller:assembleDebug :controller:testDebugUnitTest :controller:lintDebug --console=plain

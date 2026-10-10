@@ -61,6 +61,7 @@ public final class ProfileStore {
                     .lfeSubsonicHz(number(json,"lfeSubsonicHz",defaults.getLfeSubsonicHz()))
                     .swapCenterLfe(json.optBoolean("swapCenterLfe",defaults.isSwapCenterLfe()))
                     .lfeEqEnabled(json.optBoolean("lfeEqEnabled", defaults.isLfeEqEnabled()))
+                    .generalEqEnabled(json.optBoolean("generalEqEnabled",defaults.isGeneralEqEnabled()))
                     .lfeHeadroom(number(json, "lfeHeadroom", defaults.getLfeHeadroom()))
                     .automaticLfeHeadroom(json.optBoolean("automaticLfeHeadroom", defaults.isAutomaticLfeHeadroom()))
                     .surroundCrossoverEnabled(json.optBoolean("surroundCrossoverEnabled", defaults.isSurroundCrossoverEnabled()))
@@ -74,6 +75,7 @@ public final class ProfileStore {
             JSONArray gains = array(json, "lfeEqGainDb", "lfeEqGainsDb", 9);
             JSONArray frequencies = array(json, "lfeEqFrequenciesHz", null, 9);
             JSONArray widths = array(json, "lfeEqQ", null, 9);
+            JSONArray generalEq = array(json,"generalEqGainDb",null,AudioProfile.GENERAL_EQ_BAND_COUNT);
             for (int c = 0; c < 6; c++) {
                 if (trims != null) b.channelTrim(c, (float) trims.getDouble(c));
                 if (delays != null) {
@@ -87,14 +89,16 @@ public final class ProfileStore {
                 if (frequencies != null) b.lfeEqFrequencyHz(i, (float) frequencies.getDouble(i));
                 if (widths != null) b.lfeEqQ(i, (float) widths.getDouble(i));
             }
+            for(int i=0;i<AudioProfile.GENERAL_EQ_BAND_COUNT;i++)if(generalEq!=null)b.generalEqGainDb(i,(float)generalEq.getDouble(i));
             return b.build();
         } catch (JSONException e) { throw new IllegalArgumentException("JSON de perfil inválido: " + e.getMessage(), e); }
     }
     public static JSONObject toJson(AudioProfile p, String name) {
         try {
-            JSONArray trims = new JSONArray(), delays = new JSONArray(), gains = new JSONArray(), frequencies = new JSONArray(), widths = new JSONArray();
+            JSONArray trims = new JSONArray(), delays = new JSONArray(), gains = new JSONArray(), frequencies = new JSONArray(), widths = new JSONArray(), generalEq = new JSONArray();
             for (int c = 0; c < 6; c++) { trims.put(p.getChannelTrim(c)); delays.put(p.getDelaySamples(c)); }
             for (int i = 0; i < 9; i++) { gains.put(p.getLfeEqGainDb(i)); frequencies.put(p.getLfeEqFrequencyHz(i)); widths.put(p.getLfeEqQ(i)); }
+            for(int i=0;i<AudioProfile.GENERAL_EQ_BAND_COUNT;i++)generalEq.put(p.getGeneralEqGainDb(i));
             return new JSONObject().put("schemaVersion", 1).put("name", name).put("sampleRate", 48000)
                     .put("masterGain", p.getMasterGain()).put("muted", p.isMuted()).put("bypass", p.isBypass())
                     .put("inputMode", p.getInputMode().name()).put("channelTrim", trims).put("delaySamples", delays)
@@ -106,6 +110,7 @@ public final class ProfileStore {
                     .put("lfeSubsonicHz",p.getLfeSubsonicHz())
                     .put("swapCenterLfe",p.isSwapCenterLfe())
                     .put("lfeEqEnabled", p.isLfeEqEnabled()).put("lfeEqGainDb", gains).put("lfeEqFrequenciesHz", frequencies).put("lfeEqQ", widths)
+                    .put("generalEqEnabled",p.isGeneralEqEnabled()).put("generalEqGainDb",generalEq)
                     .put("lfeHeadroom", p.getLfeHeadroom()).put("automaticLfeHeadroom", p.isAutomaticLfeHeadroom())
                     .put("effectiveLfeHeadroom", p.getEffectiveLfeHeadroom())
                     .put("surroundCrossoverEnabled", p.isSurroundCrossoverEnabled()).put("surroundCutoffHz", p.getSurroundCutoffHz()).put("surroundBassSend", p.getSurroundBassSend())

@@ -86,6 +86,8 @@ public final class MainActivity extends Activity {
     };
     private AppBridge bridge;
     private JSONObject profile;
+    private JSONObject appliedProfile;
+    private TextView remoteStatus;
     private LinearLayout content;
     private FrameLayout pageHost;
     private final LinearLayout[] pages = new LinearLayout[3];
@@ -97,6 +99,7 @@ public final class MainActivity extends Activity {
     private boolean testing;
     private boolean editsPending;
     private boolean syncingControls;
+    private android.widget.Switch automaticDolbyControl;
     private boolean delaysUnlocked;
     private Button delayLockButton;
     private TextView delayLockStatus;
@@ -120,6 +123,7 @@ public final class MainActivity extends Activity {
         getWindow().setNavigationBarColor(BG);
         bridge = AppBridge.create(this);
         profile = copy(bridge.loadProfile());
+        appliedProfile = copy(profile);
         if (state != null) {
             try { profile = new JSONObject(state.getString("profile", profile.toString())); }
             catch (JSONException ignored) { }
@@ -130,12 +134,17 @@ public final class MainActivity extends Activity {
             usbExpanded = state.getBoolean("usbExpanded", false);
             reportExpanded = state.getBoolean("reportExpanded", false);
             for (int i = 0; i < 3; i++) scrollPositions[i] = state.getInt("scroll" + i, 0);
-            // Configuration changes preserve unsaved edits and the active engine profile.
-            try { bridge.applyProfile(copy(profile)); }
-            catch (RuntimeException error) { showError(error); }
+            // A rotation must not restore a stale profile over a remote adjustment.
+            if (dirty) {
+                try { appliedProfile = new JSONObject(state.getString("appliedProfile", appliedProfile.toString())); }
+                catch (JSONException ignored) { }
+                applyProfile();
+            } else { profile = copy(bridge.loadProfile()); appliedProfile = copy(profile); }
         }
         makeShell();
         showTab(selectedTab);
+        try { br.com.sistema51.a34.remote.RemoteControlService.restoreIfEnabled(this); }
+        catch (RuntimeException error) { showError(error); }
     }
 
     @Override protected void onResume() {
@@ -163,6 +172,7 @@ public final class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         out.putString("profile", profile.toString());
+        out.putString("appliedProfile", appliedProfile.toString());
         out.putInt("tab", selectedTab);
         out.putBoolean("dirty", dirty);
         // A recreated facade may cancel its test; do not restore a permanent "running" message.
@@ -212,7 +222,7 @@ public final class MainActivity extends Activity {
         LinearLayout tabRow = row();
         tabRow.setPadding(dp(16), 0, dp(16), dp(10));
         tabs = new Button[3];
-        String[] labels = {"Painel", "Perfil", "Diagnóstico"};
+        String[] labels = {"Painel", "⚙ Ajustes", "Diagnóstico"};
         for (int i = 0; i < 3; i++) {
             final int tab = i;
             tabs[i] = button(labels[i], false);
@@ -294,7 +304,7 @@ public final class MainActivity extends Activity {
         hero.addView(heroDetail);
         LinearLayout actions = row();
         actions.setPadding(0, dp(18), 0, 0);
-        startButton = button("Iniciar DSP", true);
+        startButton = button("Iniciar Fire TV", true);
         startButton.setOnClickListener(v -> startAudio());
         stopButton = button("Parar", false);
         stopButton.setOnClickListener(v -> {
@@ -333,14 +343,14 @@ public final class MainActivity extends Activity {
         addCard(levels);
 
         LinearLayout route = card();
-        heading(route, "Caminho de áudio", "PCM USB → processamento → saída 5.1");
+        heading(route, "Caminho de áudio", "Fire TV óptico → decoder → DSP → saída USB 5.1");
         route.addView(text("ENTRADA", 10, TEAL));
         inputText = text("Sem captura ativa", 14, WHITE);
         inputText.setPadding(0, dp(4), 0, dp(14)); route.addView(inputText);
         route.addView(text("SAÍDA", 10, TEAL));
         outputText = text("Sem reprodução ativa", 14, WHITE);
         outputText.setPadding(0, dp(4), 0, dp(12)); route.addView(outputText);
-        route.addView(text("O modo 5.1 preserva arquivos de seis canais. A entrada PCM estéreo pode usar upmix; AC-3 óptico ao vivo aguarda validação.", 12, MUTED));
+        route.addView(text("Upmix apenas para mono/estéreo PCM ou não Dolby. AC-3/E-AC-3 e 5.1 nativo preservam seus canais.", 12, MUTED));
         addCard(route);
         Button diagnostics = button("Abrir diagnóstico e testes", false);
         diagnostics.setOnClickListener(v -> showTab(2));
@@ -402,7 +412,7 @@ public final class MainActivity extends Activity {
         addCard(presets);
 
         LinearLayout mode = card();
-        heading(mode, "Entrada e ganho", "Upmix estéreo é uma matriz local; não recupera surround original.");
+        heading(mode, "Entrada e ganho", "Fire TV óptico escolhe o modo automaticamente. Estes botões definem apenas a entrada PCM manual.");
         LinearLayout modes = row();
         Button nativeMode = button("5.1 nativo", "NATIVE_5_1".equals(profile.optString("inputMode", "NATIVE_5_1")));
         Button stereoMode = button("Upmix estéreo", "STEREO_UPMIX".equals(profile.optString("inputMode")));
@@ -416,8 +426,27 @@ public final class MainActivity extends Activity {
         addToggle(mode, "Bypass do DSP", "Volume e trims continuam ativos.", "bypass", false);
         addCard(mode);
 
+        LinearLayout volumes=card();
+        heading(volumes,"Volume por canal","Equilibre as seis caixas. O volume mestre preserva esse equilíbrio.");
+        for(int i=0;i<6;i++){
+            final int channel=i;
+            addSlider(volumes,CHANNELS[i]+" · "+CHANNEL_NAMES[i],linearToDb(arrayValue("channelTrim",i,1)),-60,12,.5f,"dB",value->{
+                putArray("channelTrim",channel,dbToLinear(value));changed();
+            });
+        }
+        if(bridge instanceof br.com.sistema51.a34.AppFacade){
+            br.com.sistema51.a34.AppFacade facade=(br.com.sistema51.a34.AppFacade)bridge;
+            android.widget.Switch automatic=new android.widget.Switch(this);
+            automaticDolbyControl=automatic;
+            automatic.setText("Iniciar automaticamente com Dolby");automatic.setTextColor(WHITE);
+            automatic.setChecked(facade.autoDolbyEnabled()&&!facade.autoDolbyPaused());
+            automatic.setOnCheckedChangeListener((button,enabled)->{if(!syncingControls)facade.setAutoDolbyEnabled(enabled);});
+            volumes.addView(automatic);
+        }
+        addCard(volumes);
+
         LinearLayout upmix = card();
-        heading(upmix, "Upmix estéreo", "Só atua em entrada estéreo. Preserva FL/FR e não cria uma gravação 5.1 original.");
+        heading(upmix, "Upmix mono/estéreo", "Expande fontes decodificadas com um ou dois canais, inclusive Dolby. Áudio 5.1 mantém seus canais.");
         LinearLayout upmixPresets = row();
         Button fill = button("Preencher caixas", false);
         Button ambience = button("Ambiência", false);
@@ -441,7 +470,7 @@ public final class MainActivity extends Activity {
         addCard(upmix);
 
         LinearLayout timing = card();
-        heading(timing, "Atraso e ganho por canal", "A calibração dos atrasos fica protegida. O ganho por canal continua disponível.");
+        heading(timing, "Atraso por canal", "A calibração dos atrasos fica protegida.");
         delayLockStatus = text("Atrasos bloqueados para evitar alterações acidentais.", 13, MUTED);
         timing.addView(delayLockStatus);
         delayLockButton = button("Editar atrasos", false);
@@ -465,10 +494,6 @@ public final class MainActivity extends Activity {
                 if (!delaysUnlocked) return;
                 putArray("delaySamples", channel, Math.round(value * 48)); changed();
             }, true);
-            float trim = linearToDb(arrayValue("channelTrim", i, 1));
-            addSlider(timing, "Trim", trim, -24, 12, .5f, "dB", value -> {
-                putArray("channelTrim", channel, dbToLinear(value)); changed();
-            });
         }
         addCard(timing);
 
@@ -492,6 +517,19 @@ public final class MainActivity extends Activity {
         bass.addView(text("A margem manual só é usada com a margem automática desligada.", 12, MUTED));
         addCard(bass);
 
+        LinearLayout generalEq=card();
+        heading(generalEq,"Equalizador geral","10 bandas gráficas nos seis canais. Cada reforço é aplicado de verdade; a margem só reduz o ganho se mestre e trims puderem saturar.");
+        generalEq.addView(text("O ajuste reforça o áudio perto do Hz indicado. Se a fonte tiver pouco conteúdo nessa faixa, a mudança pode ser discreta.",12,MUTED));
+        addToggle(generalEq,"Ativar equalizador geral","Aplica o mesmo ajuste tonal a FL, FR, central, LFE e surrounds.","generalEqEnabled",true);
+        for(int band=0;band<br.com.sistema51.a34.dsp.AudioProfile.GENERAL_EQ_BAND_COUNT;band++){
+            final int selectedBand=band;
+            float frequency=br.com.sistema51.a34.dsp.AudioProfile.getGeneralEqFrequencyHz(band);
+            addSlider(generalEq,fmt(frequency,frequency<1000?1:0)+" Hz",(float)arrayValue("generalEqGainDb",band,0),-12,6,.5f,"dB",value->{
+                putArray("generalEqGainDb",selectedBand,value);changed();
+            });
+        }
+        addCard(generalEq);
+
         LinearLayout eq = card();
         heading(eq, "Equalizador do subwoofer", "9 bandas paramétricas · ganhos em dB · Q editável por banda");
         addToggle(eq, "Ativar EQ no LFE", "A equalização atua no subwoofer.", "lfeEqEnabled", true);
@@ -512,6 +550,28 @@ public final class MainActivity extends Activity {
     }
 
     private void buildDiagnostics() {
+        LinearLayout remote = card();
+        heading(remote, "Controle pela rede local", "Abra o endereço em qualquer aparelho da mesma rede e informe o código de 4 dígitos.");
+        remoteStatus = text("", 13, WHITE); remoteStatus.setTextIsSelectable(true); remote.addView(remoteStatus);
+        Button enableRemote = button("Ativar controle local", true);
+        enableRemote.setOnClickListener(v -> {
+            try {
+                startForegroundService(new Intent(this, br.com.sistema51.a34.remote.RemoteControlService.class));
+                if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                    requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, NOTIFICATION_PERMISSION);
+            } catch (RuntimeException error) { showError(error); }
+        });
+        remote.addView(enableRemote, fullButton());
+        Button showKey = button("Mostrar código de acesso", false);
+        showKey.setOnClickListener(v -> {
+            TextView key = text(br.com.sistema51.a34.remote.RemoteControlService.accessCode(this), 28, WHITE);
+            key.setGravity(Gravity.CENTER); key.setLetterSpacing(.2f); key.setTextIsSelectable(true); key.setPadding(dp(20), dp(16), dp(20), dp(16));
+            new AlertDialog.Builder(this).setTitle("Código do controle local").setView(key).setPositiveButton("Fechar", null).show();
+        });
+        remote.addView(showKey, fullButton());
+        Button disableRemote = button("Desligar controle local", false);
+        disableRemote.setOnClickListener(v -> br.com.sistema51.a34.remote.RemoteControlService.stop(this));
+        remote.addView(disableRemote, fullButton()); addCard(remote);
         LinearLayout usb = card();
         heading(usb, "Interface USB", "Confira a placa e autorize o acesso neste Android.");
         usbSummary = text("Consultando a conexão…", 14, WHITE);
@@ -617,8 +677,8 @@ public final class MainActivity extends Activity {
     }
 
     private void addMaster(LinearLayout target) {
-        SliderBinding binding = addSlider(target, "Volume geral", linearToDb(profile.optDouble("masterGain", .04)), -60, 0, .5f, "dB", value -> {
-            put("masterGain", dbToLinear(value)); changed();
+        SliderBinding binding = addSlider(target, "Volume mestre", (float)(100*Math.cbrt(profile.optDouble("masterGain", .04))), 0, 100, 1, "%", value -> {
+            put("masterGain", Math.pow(value/100.0,3)); changed();
         });
         masterControls.add(binding);
     }
@@ -748,6 +808,28 @@ public final class MainActivity extends Activity {
         try { s = bridge.snapshot(); }
         catch (RuntimeException error) { return; }
         if (s == null) return;
+        if(automaticDolbyControl!=null&&bridge instanceof br.com.sistema51.a34.AppFacade){
+            br.com.sistema51.a34.AppFacade facade=(br.com.sistema51.a34.AppFacade)bridge;
+            syncingControls=true;try{automaticDolbyControl.setChecked(facade.autoDolbyEnabled()&&!facade.autoDolbyPaused());}finally{syncingControls=false;}
+        }
+        JSONObject latest=bridge.loadProfile();
+        if(!latest.toString().equals(appliedProfile.toString())){
+            JSONObject merged=copy(latest);
+            java.util.Iterator<String> keys=profile.keys();
+            while(keys.hasNext()){
+                String key=keys.next();
+                if(!String.valueOf(profile.opt(key)).equals(String.valueOf(appliedProfile.opt(key))))try{merged.put(key,profile.opt(key));}
+                catch(JSONException ignored){}
+            }
+            profile=merged;appliedProfile=copy(latest);syncSharedControls();
+            if(scrolls[1]!=null){
+                scrollPositions[1]=scrolls[1].getScrollY();pageHost.removeView(scrolls[1]);pages[1]=null;scrolls[1]=null;
+                delayControls.clear();masterControls.removeIf(binding->binding.page==1);sharedToggles.removeIf(binding->binding.page==1);
+                if(selectedTab==1){showTab(1);return;}
+            }
+        }
+        if (remoteStatus != null && selectedTab == 2) setTextIfChanged(remoteStatus,
+            br.com.sistema51.a34.remote.RemoteControlService.state() + "\n" + br.com.sistema51.a34.remote.RemoteControlService.addresses());
         boolean running = s.optBoolean("running", false);
         boolean busy = testing || s.optBoolean("busy", false);
         if (running && notifyWhenRunning) {
@@ -762,9 +844,12 @@ public final class MainActivity extends Activity {
             setTextIfChanged(heroDetail, s.optString("detail", "Conecte a interface e confira os canais em Diagnóstico."));
             setTextIfChanged(connectionStatus, running ? "DSP EM EXECUÇÃO" : attached ? "USB CONECTADO · DSP PARADO" : "AGUARDANDO INTERFACE USB");
             connectionStatus.setTextColor(running ? TEAL : AMBER);
-            startButton.setEnabled(!running && !busy && !s.optBoolean("loading", false)); stopButton.setEnabled(running || "starting".equals(s.optString("state")));
+            boolean audioBusy=running||s.optBoolean("starting")||s.optBoolean("stopping");
+            startButton.setEnabled(!audioBusy && !busy && s.optBoolean("opticalHardwareReady") && !s.optBoolean("loading", false)); stopButton.setEnabled(audioBusy || "starting".equals(s.optString("state")));
             setTextIfChanged(channelBadge, attached ? channelCapabilitySummary(s) : "USB não detectado");
-            setTextIfChanged(modeBadge, "STEREO_UPMIX".equals(profile.optString("inputMode")) ? "Perfil upmix" : "Perfil 5.1");
+            setTextIfChanged(modeBadge, s.optBoolean("sourcePolicyAutomatic")
+                    ? (s.optBoolean("upmixActive") ? "Upmix automático" : s.optInt("sourceChannels",0)==6 ? "5.1 nativo" : "Entrada automática")
+                    : "STEREO_UPMIX".equals(profile.optString("inputMode")) ? "Perfil upmix" : "Perfil 5.1");
             setTextIfChanged(inputText, s.optString("inputSummary", "Sem captura ativa"));
             setTextIfChanged(outputText, s.optString("outputSummary", "Sem reprodução ativa"));
             JSONArray levelData = s.optJSONArray("meters");
@@ -794,6 +879,8 @@ public final class MainActivity extends Activity {
                         + "\nInterrupções de saída: " + s.optInt("underruns", 0)
                         + "\nAmostras limitadas: " + s.optLong("clippingSamples", 0)
                         + "\nQuadros capturados / reproduzidos: " + s.optLong("capturedFrames", 0) + " / " + s.optLong("reproducedFrames", 0)
+                        + "\nFonte: " + s.optString("sourceCodec", "PCM") + " · " + s.optInt("sourceChannels", s.optInt("inputChannels", 0)) + " canais"
+                        + (s.optString("runtimeError").isEmpty() ? "" : "\nFalha: " + s.optString("runtimeError"))
                         + "\nLatência total: ainda não medida."
                         : "Sem sessão ativa. Inicie o DSP para acompanhar o processamento.");
             }
@@ -930,10 +1017,16 @@ public final class MainActivity extends Activity {
         main.removeCallbacks(applyEdits);
         editsPending = false;
         try {
-            bridge.applyProfile(copy(profile)); dirty = false;
+            if (bridge instanceof br.com.sistema51.a34.AppFacade) {
+                br.com.sistema51.a34.AppFacade facade = (br.com.sistema51.a34.AppFacade) bridge;
+                JSONObject changes = new JSONObject(); java.util.Iterator<String> keys = profile.keys();
+                while (keys.hasNext()) { String key = keys.next(); if (!String.valueOf(profile.opt(key)).equals(String.valueOf(appliedProfile.opt(key)))) changes.put(key, profile.opt(key)); }
+                synchronized (facade) { profile = facade.patchProfile(changes, facade.profileRevision(), true); }
+            } else bridge.applyProfile(copy(profile));
+            appliedProfile = copy(bridge.loadProfile()); profile = copy(appliedProfile); dirty = false;
             if (profileState != null) { setTextIfChanged(profileState, "Ajustes aplicados e salvos automaticamente."); profileState.setTextColor(TEAL); }
         }
-        catch (RuntimeException error) {
+        catch (RuntimeException | JSONException error) {
             if (profileState != null) { setTextIfChanged(profileState, "Ajuste não aplicado. Confira o modo de entrada e os valores."); profileState.setTextColor(AMBER); }
             showError(error);
         }
@@ -969,8 +1062,9 @@ public final class MainActivity extends Activity {
     private void chooseMode(String mode, Button nativeButton, Button stereoButton) {
         if (mode.equals(profile.optString("inputMode"))) return;
         JSONObject snapshot = bridge.snapshot();
-        if (snapshot != null && snapshot.optBoolean("running", false)) {
-            toast("Pare o DSP antes de trocar o modo de entrada."); return;
+        if (snapshot != null && !snapshot.optBoolean("sourcePolicyAutomatic")
+                && (snapshot.optBoolean("running") || snapshot.optBoolean("starting") || snapshot.optBoolean("stopping"))) {
+            toast("Pare o DSP PCM antes de trocar o modo de entrada."); return;
         }
         put("inputMode", mode); changed(); applyProfile();
         boolean nativeMode = mode.equals("NATIVE_5_1");
@@ -981,7 +1075,7 @@ public final class MainActivity extends Activity {
     private void syncSharedControls() {
         syncingControls = true;
         try {
-            float masterDb = linearToDb(profile.optDouble("masterGain", .04));
+            float masterDb = (float)(100*Math.cbrt(profile.optDouble("masterGain", .04)));
             for (SliderBinding binding : masterControls) {
                 binding.bar.setProgress(Math.round((masterDb - binding.min) / binding.step));
                 setTextIfChanged(binding.value, formatValue(masterDb, binding.unit));

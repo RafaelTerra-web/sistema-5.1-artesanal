@@ -21,6 +21,66 @@ public final class AppTestInstrumentation extends Instrumentation {
     @Override public void onStart(){
         Bundle result=new Bundle();Context context=getTargetContext();JSONObject report=new JSONObject();
         try{
+            if(arguments!=null&&"native-transport-selftest".equals(arguments.getString("hardware"))){
+                int mask=br.com.sistema51.a34.usb.Cm6206DuplexTransport.softwareSelfTest();
+                report.put("ok",mask==31).put("checksMask",mask).put("scope","Native rings/gate/priming/PCM order; no USB or sound output.");
+                result.putString("report",report.toString());finish(mask==31?0:1,result);return;
+            }
+            if(arguments!=null&&"software-decoder".equals(arguments.getString("hardware"))){
+                report=SoftwareAc3DecoderProbe.run(context);
+                File dir=new File(context.getFilesDir(),"hardware");if(!dir.isDirectory()&&!dir.mkdirs())throw new IOException("Teste sem diretório");
+                write(new File(dir,"software-decoder.json"),report.toString(2));
+                result.putString("report",report.toString());finish(report.optBoolean("ok")?0:1,result);return;
+            }
+            if(arguments!=null&&"decoder-drain".equals(arguments.getString("hardware"))){
+                File dir=new File(context.getFilesDir(),"hardware");if(!dir.isDirectory()&&!dir.mkdirs())throw new IOException("Teste sem diretório");
+                File source=new File(dir,"decoder-fixture.ac3"),output=new File(dir,"decoder-drain.wav");
+                try(InputStream in=context.getAssets().open("fixtures/tones-51.ac3");OutputStream out=new FileOutputStream(source)){
+                    byte[] b=new byte[4096];int n;while((n=in.read(b))!=-1)out.write(b,0,n);
+                }
+                report=PlatformAc3Decoder.decode(source,output,"true".equals(arguments.getString("eos-on-last","false")));
+                write(new File(dir,"decoder-drain.json"),report.toString(2));result.putString("report",report.toString());finish(0,result);return;
+            }
+            if(arguments!=null&&"raw-optical-capture".equals(arguments.getString("hardware"))){
+                report=RawOpticalCaptureProbe.run(context,Integer.parseInt(arguments.getString("seconds","3")),"true".equals(arguments.getString("silent-duplex","false")),"true".equals(arguments.getString("preserve-android-output","false")),Integer.parseInt(arguments.getString("output-slots","6")),Integer.parseInt(arguments.getString("handoff-ms","0")));
+                result.putString("report",report.toString());finish(report.optBoolean("ok")?0:1,result);return;
+            }
+            if(arguments!=null&&"hybrid-silent".equals(arguments.getString("hardware"))){
+                java.util.concurrent.ExecutorService playback=java.util.concurrent.Executors.newSingleThreadExecutor();
+                try{
+                    java.util.concurrent.Future<JSONObject> silence=playback.submit(()->br.com.sistema51.a34.usb.UsbSilentPlaybackProbe.run(context));
+                    android.os.SystemClock.sleep(200);
+                    JSONObject capture=RawOpticalCaptureProbe.run(context,3,false,true);
+                    JSONObject output=silence.get(5,java.util.concurrent.TimeUnit.SECONDS);
+                    report.put("capture",capture).put("output",output).put("ok",capture.optBoolean("ok")&&output.optBoolean("ok"));
+                    report.put("scope","Native optical IN plus Android USB six-slot OUT; only zero output samples, no decoder/DSP/content playback.");
+                }finally{playback.shutdownNow();}
+                result.putString("report",report.toString());finish(report.optBoolean("ok")?0:1,result);return;
+            }
+            if(arguments!=null&&"android-optical-silent".equals(arguments.getString("hardware"))){
+                java.util.concurrent.ExecutorService playback=java.util.concurrent.Executors.newSingleThreadExecutor();
+                try{
+                    java.util.concurrent.Future<JSONObject> silence=playback.submit(()->br.com.sistema51.a34.usb.UsbSilentPlaybackProbe.run(context));
+                    android.os.SystemClock.sleep(200);
+                    JSONObject capture=UsbCaptureProbe.capture(context,new File(context.getFilesDir(),"hardware"));
+                    JSONObject output=silence.get(5,java.util.concurrent.TimeUnit.SECONDS);
+                    report.put("capture",capture).put("output",output).put("ok",capture.optBoolean("ok")&&output.optBoolean("ok"));
+                    report.put("scope","Android USB stereo PCM16 carrier capture plus six-slot OUT; only zero output samples. CRC must be inspected separately.");
+                }finally{playback.shutdownNow();}
+                result.putString("report",report.toString());finish(report.optBoolean("ok")?0:1,result);return;
+            }
+            if(arguments!=null&&"hid-exclusive".equals(arguments.getString("hardware"))){
+                android.hardware.usb.UsbManager manager=(android.hardware.usb.UsbManager)context.getSystemService(Context.USB_SERVICE);
+                android.hardware.usb.UsbDevice selected=null;
+                for(android.hardware.usb.UsbDevice device:manager.getDeviceList().values())if(device.getVendorId()==0x0d8c&&device.getProductId()==0x0102){
+                    if(selected!=null)throw new IllegalStateException("Mais de uma CM6206; diagnóstico ambíguo.");selected=device;
+                }
+                if(selected==null)throw new IllegalStateException("CM6206 ausente.");
+                report=br.com.sistema51.a34.usb.Cm6206HidControl.readSnapshot(context,selected.getDeviceId(),true);
+                File hardwareDir=new File(context.getFilesDir(),"hardware");if(!hardwareDir.isDirectory()&&!hardwareDir.mkdirs())throw new IOException("Diagnóstico sem diretório.");
+                write(new File(hardwareDir,"hid-exclusive.json"),report.toString(2));
+                result.putString("report",report.toString());finish("ok".equals(report.optString("status"))?0:1,result);return;
+            }
             String operation=arguments==null?null:arguments.getString("operation");
             if(operation!=null){
                 if(arguments.containsKey("hardware"))throw new IllegalArgumentException("Não combine operação de perfil com teste de hardware.");
@@ -30,7 +90,7 @@ public final class AppTestInstrumentation extends Instrumentation {
                 report.put("operation",operation).put("ok",true).put("scope","Perfil no UID do APK debug; sem USB, captura ou reprodução.");
                 result.putString("report",report.toString());finish(0,result);return;
             }
-            if(arguments!=null&&"capture-source".equals(arguments.getString("hardware"))){
+            if(arguments!=null&&("capture-source".equals(arguments.getString("hardware"))||"capture-source-device-read".equals(arguments.getString("hardware")))){
                 android.hardware.usb.UsbManager manager=(android.hardware.usb.UsbManager)context.getSystemService(Context.USB_SERVICE);
                 int deviceId=-1;
                 for(android.hardware.usb.UsbDevice device:manager.getDeviceList().values()){
@@ -39,7 +99,7 @@ public final class AppTestInstrumentation extends Instrumentation {
                         deviceId=device.getDeviceId();
                     }
                 }
-                report=UacCaptureSourceProbe.readSnapshot(context,deviceId);
+                report=UacCaptureSourceProbe.readSnapshot(context,deviceId,"capture-source-device-read".equals(arguments.getString("hardware")));
                 File hardwareDir=new File(context.getFilesDir(),"hardware");if(!hardwareDir.isDirectory()&&!hardwareDir.mkdirs())throw new IOException("Diagnóstico sem diretório.");
                 write(new File(hardwareDir,"capture-source.json"),report.toString(2));
                 result.putString("report",report.toString());finish(report.optBoolean("ok",false)?0:1,result);return;

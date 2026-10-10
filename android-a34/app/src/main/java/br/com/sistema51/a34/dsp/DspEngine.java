@@ -17,7 +17,12 @@ public final class DspEngine {
     private final double[][] delayRings = new double[CHANNEL_COUNT][RING_LENGTH];
     private final double[] frame = new double[CHANNEL_COUNT];
     private final float[] blockPeaks = new float[CHANNEL_COUNT];
+    private final double[] outputGain=new double[CHANNEL_COUNT],targetGain=new double[CHANNEL_COUNT],gainStep=new double[CHANNEL_COUNT];
+    private int gainRampRemaining;
+    private double generalEqGain=1,generalEqGainTarget=1,generalEqGainStep;
+    private int generalEqGainRemaining;
     private final Biquad[] eq = new Biquad[AudioProfile.EQ_BAND_COUNT];
+    private final Biquad[][] generalEq=new Biquad[CHANNEL_COUNT][AudioProfile.GENERAL_EQ_BAND_COUNT];
     private final Biquad[] surroundLow = filters(4), surroundHigh = filters(4);
     private final Biquad[] centerLow = filters(2), stereoLow = filters(2);
     private final Biquad[] frontLow=filters(6),frontHigh=filters(6);
@@ -35,6 +40,7 @@ public final class DspEngine {
         }
         this.maxBlockFrames = maxBlockFrames;
         for (int b = 0; b < eq.length; b++) eq[b] = new Biquad();
+        for(int c=0;c<CHANNEL_COUNT;c++)for(int b=0;b<AudioProfile.GENERAL_EQ_BAND_COUNT;b++)generalEq[c][b]=new Biquad();
         requested = new CompiledProfile(AudioProfile.defaultProfile());
         applyProfile(requested);
     }
@@ -42,7 +48,7 @@ public final class DspEngine {
     /** Compile on the control thread, then publish in one volatile write. */
     public void setProfile(AudioProfile profile) {
         if (profile == null) throw new IllegalArgumentException("profile cannot be null");
-        requested = new CompiledProfile(profile);
+        requested = new CompiledProfile(profile,requested);
     }
     /** Latest submitted settings; applied by the next process call. */
     public AudioProfile getProfile() { return requested.profile; }
@@ -80,6 +86,9 @@ public final class DspEngine {
         Arrays.fill(blockPeaks, 0);
         AudioProfile p = active.profile;
         double master = p.isMuted() ? 0 : p.getMasterGain();
+        int generalEqMask=0;
+        for(int b=0;b<AudioProfile.GENERAL_EQ_BAND_COUNT;b++)
+            for(int c=0;c<CHANNEL_COUNT;c++)if(generalEq[c][b].active()){generalEqMask|=1<<b;break;}
         for (int f = 0, inputIndex = 0, outputIndex = 0; f < frames;
              f++, inputIndex += inputChannels, outputIndex += CHANNEL_COUNT) {
             if (inputChannels == CHANNEL_COUNT) {
@@ -127,13 +136,23 @@ public final class DspEngine {
                 if (p.isLfeEqEnabled()) for (Biquad filter : eq) lfe = filter.process(lfe);
                 if(p.isLfeSubsonicEnabled())lfe=lfeSubsonic.process(lfe);
                 frame[AudioProfile.LFE] = lfe;
+                if(generalEqMask!=0||generalEqGain!=1||generalEqGainRemaining>0){
+                    if(generalEqGainRemaining>0){generalEqGain+=generalEqGainStep;if(--generalEqGainRemaining==0)generalEqGain=generalEqGainTarget;}
+                    for(int c=0;c<CHANNEL_COUNT;c++){
+                        double sample=frame[c];
+                        for(int b=0;b<AudioProfile.GENERAL_EQ_BAND_COUNT;b++)if((generalEqMask&(1<<b))!=0)sample=generalEq[c][b].process(sample);
+                        frame[c]=sample*generalEqGain;
+                    }
+                }
             }
             for (int c = 0; c < CHANNEL_COUNT; c++) {
-                double value = frame[c] * p.getChannelTrim(c) * master;
+                if(gainRampRemaining>0)outputGain[c]+=gainStep[c];
+                double value = frame[c] * (master==0?0:outputGain[c]);
                 float sample = clampOutput(value);
                 output[outputIndex + c] = sample;
                 blockPeaks[c] = Math.max(blockPeaks[c], Math.abs(sample));
             }
+            if(gainRampRemaining>0&&--gainRampRemaining==0)System.arraycopy(targetGain,0,outputGain,0,CHANNEL_COUNT);
         }
         framesProcessed += frames;
     }
@@ -161,9 +180,22 @@ public final class DspEngine {
     }
 
     private void applyProfile(CompiledProfile next) {
+        boolean ramp=active!=null&&framesProcessed>0&&!active.profile.isMuted()&&!next.profile.isMuted();
+        boolean gainChanged=false;
+        for(int c=0;c<CHANNEL_COUNT;c++){
+            targetGain[c]=next.profile.getChannelTrim(c)*next.profile.getMasterGain();
+            gainChanged|=targetGain[c]!=outputGain[c];
+        }
+        if(ramp&&gainChanged){gainRampRemaining=480;for(int c=0;c<CHANNEL_COUNT;c++)gainStep[c]=(targetGain[c]-outputGain[c])/480;}
+        else if(!ramp){gainRampRemaining=0;System.arraycopy(targetGain,0,outputGain,0,CHANNEL_COUNT);}
         // Gain, headroom, mute and trims do not destroy delay/filter histories.
         boolean changedTopology = active == null || graphChanged(active.profile, next.profile);
-        for (int b = 0; b < eq.length; b++) eq[b].coefficients(next.eqCoefficients[b]);
+        if(changedTopology||framesProcessed==0){generalEqGainRemaining=0;generalEqGain=generalEqGainTarget=next.generalEqHeadroom;}
+        else if(generalEqGainTarget!=next.generalEqHeadroom){generalEqGainTarget=next.generalEqHeadroom;generalEqGainRemaining=480;generalEqGainStep=(generalEqGainTarget-generalEqGain)/480;}
+        for (int b = 0; b < eq.length; b++) {if(changedTopology)eq[b].coefficients(next.eqCoefficients[b]);else eq[b].smoothCoefficients(next.eqCoefficients[b]);}
+        for(int c=0;c<CHANNEL_COUNT;c++)for(int b=0;b<AudioProfile.GENERAL_EQ_BAND_COUNT;b++){
+            if(changedTopology)generalEq[c][b].coefficients(next.generalEqCoefficients[b]);else generalEq[c][b].smoothCoefficients(next.generalEqCoefficients[b]);
+        }
         for (Biquad filter : surroundLow) filter.coefficients(next.surroundLow);
         for (Biquad filter : surroundHigh) filter.coefficients(next.surroundHigh);
         for (Biquad filter : centerLow) filter.coefficients(next.centerLow);
@@ -185,11 +217,6 @@ public final class DspEngine {
         if(a.isFrontCrossoverEnabled()!=b.isFrontCrossoverEnabled()||a.getFrontCutoffHz()!=b.getFrontCutoffHz()
                 ||a.isLfeSubsonicEnabled()!=b.isLfeSubsonicEnabled()||a.getLfeSubsonicHz()!=b.getLfeSubsonicHz())return true;
         for (int c = 0; c < CHANNEL_COUNT; c++) if (a.getDelaySamples(c) != b.getDelaySamples(c)) return true;
-        for (int i = 0; i < AudioProfile.EQ_BAND_COUNT; i++) {
-            if (a.getLfeEqGainDb(i) != b.getLfeEqGainDb(i)
-                    || a.getLfeEqFrequencyHz(i) != b.getLfeEqFrequencyHz(i)
-                    || a.getLfeEqQ(i) != b.getLfeEqQ(i)) return true;
-        }
         return false;
     }
     private void clearHistory() {
@@ -201,6 +228,7 @@ public final class DspEngine {
         for (Biquad filter : stereoLow) filter.reset();
         for(Biquad filter:frontLow)filter.reset();
         for(Biquad filter:frontHigh)filter.reset();
+        for(Biquad[] channel:generalEq)for(Biquad filter:channel)filter.reset();
         lfeSubsonic.reset();
         ringPosition = 0;
     }
@@ -208,14 +236,39 @@ public final class DspEngine {
     private static final class CompiledProfile {
         final AudioProfile profile;
         final double[][] eqCoefficients = new double[AudioProfile.EQ_BAND_COUNT][];
+        final double[][] generalEqCoefficients=new double[AudioProfile.GENERAL_EQ_BAND_COUNT][];
+        final boolean[] generalEqBandEnabled=new boolean[AudioProfile.GENERAL_EQ_BAND_COUNT];
+        final double generalEqHeadroom;
         final double[] surroundLow, surroundHigh, centerLow, stereoLow;
         final double[] frontLow,frontHigh,lfeSubsonic;
-        CompiledProfile(AudioProfile profile) {
+        CompiledProfile(AudioProfile profile) { this(profile,null); }
+        CompiledProfile(AudioProfile profile,CompiledProfile previous) {
             this.profile = profile;
+            if(previous!=null&&sameFilterSettings(profile,previous.profile)){
+                System.arraycopy(previous.eqCoefficients,0,eqCoefficients,0,eqCoefficients.length);
+                System.arraycopy(previous.generalEqCoefficients,0,generalEqCoefficients,0,generalEqCoefficients.length);
+                System.arraycopy(previous.generalEqBandEnabled,0,generalEqBandEnabled,0,generalEqBandEnabled.length);
+                generalEqHeadroom=previous.generalEqHeadroom;
+                surroundLow=previous.surroundLow;surroundHigh=previous.surroundHigh;centerLow=previous.centerLow;stereoLow=previous.stereoLow;
+                frontLow=previous.frontLow;frontHigh=previous.frontHigh;lfeSubsonic=previous.lfeSubsonic;
+                return;
+            }
             for (int i = 0; i < eqCoefficients.length; i++) {
                 eqCoefficients[i] = Biquad.peak(profile.getLfeEqFrequencyHz(i),
                         profile.getLfeEqQ(i), profile.getLfeEqGainDb(i));
             }
+            boolean anyGeneralEqBand=false;
+            for(int i=0;i<generalEqCoefficients.length;i++){
+                float gain=profile.isGeneralEqEnabled()?profile.getGeneralEqGainDb(i):0;
+                generalEqBandEnabled[i]=profile.isGeneralEqEnabled()&&gain!=0;
+                anyGeneralEqBand|=generalEqBandEnabled[i];
+                generalEqCoefficients[i]=Biquad.peak(AudioProfile.getGeneralEqFrequencyHz(i),AudioProfile.getGeneralEqQ(),gain);
+            }
+            double largestOutputGain=0;
+            for(int channel=0;channel<AudioProfile.CHANNEL_COUNT;channel++)
+                largestOutputGain=Math.max(largestOutputGain,profile.getMasterGain()*profile.getChannelTrim(channel));
+            generalEqHeadroom=anyGeneralEqBand
+                    ?generalEqHeadroom(generalEqCoefficients,generalEqBandEnabled,largestOutputGain):1;
             surroundLow = Biquad.lowPass(profile.getSurroundCutoffHz(), BUTTERWORTH_Q);
             surroundHigh = Biquad.highPass(profile.getSurroundCutoffHz(), BUTTERWORTH_Q);
             centerLow = Biquad.lowPass(profile.getCenterBassCutoffHz(), BUTTERWORTH_Q);
@@ -223,6 +276,46 @@ public final class DspEngine {
             frontLow=Biquad.lowPass(profile.getFrontCutoffHz(),BUTTERWORTH_Q);
             frontHigh=Biquad.highPass(profile.getFrontCutoffHz(),BUTTERWORTH_Q);
             lfeSubsonic=Biquad.highPass(profile.getLfeSubsonicHz(),BUTTERWORTH_Q);
+        }
+
+        private static boolean sameFilterSettings(AudioProfile a,AudioProfile b){
+            if(a.isGeneralEqEnabled()!=b.isGeneralEqEnabled()||a.getSurroundCutoffHz()!=b.getSurroundCutoffHz()
+                    ||a.getCenterBassCutoffHz()!=b.getCenterBassCutoffHz()||a.getUpmixBassCutoffHz()!=b.getUpmixBassCutoffHz()
+                    ||a.getFrontCutoffHz()!=b.getFrontCutoffHz()||a.getLfeSubsonicHz()!=b.getLfeSubsonicHz()
+                    ||a.getMasterGain()!=b.getMasterGain())return false;
+            for(int channel=0;channel<AudioProfile.CHANNEL_COUNT;channel++)
+                if(a.getChannelTrim(channel)!=b.getChannelTrim(channel))return false;
+            for(int i=0;i<AudioProfile.EQ_BAND_COUNT;i++)if(a.getLfeEqFrequencyHz(i)!=b.getLfeEqFrequencyHz(i)
+                    ||a.getLfeEqGainDb(i)!=b.getLfeEqGainDb(i)||a.getLfeEqQ(i)!=b.getLfeEqQ(i))return false;
+            for(int i=0;i<AudioProfile.GENERAL_EQ_BAND_COUNT;i++)if(a.getGeneralEqGainDb(i)!=b.getGeneralEqGainDb(i))return false;
+            return true;
+        }
+
+        private static double generalEqHeadroom(double[][] coefficients,boolean[] enabled,double largestOutputGain){
+            double peak=1;
+            for(int step=0;step<=1024;step++){
+                double frequency=20*Math.pow(20000.0/20,step/1024.0),omega=2*Math.PI*frequency/AudioProfile.SAMPLE_RATE;
+                double real=1,imaginary=0;
+                double cos1=Math.cos(omega),cos2=Math.cos(2*omega),sin1=Math.sin(omega),sin2=Math.sin(2*omega);
+                for(int band=0;band<coefficients.length;band++)if(enabled[band]){
+                    double[] c=coefficients[band];
+                    double nReal=c[0]+c[1]*cos1+c[2]*cos2;
+                    double nImaginary=-c[1]*sin1-c[2]*sin2;
+                    double dReal=1+c[3]*cos1+c[4]*cos2;
+                    double dImaginary=-c[3]*sin1-c[4]*sin2;
+                    double denominator=dReal*dReal+dImaginary*dImaginary;
+                    double hReal=(nReal*dReal+nImaginary*dImaginary)/denominator;
+                    double hImaginary=(nImaginary*dReal-nReal*dImaginary)/denominator;
+                    double nextReal=real*hReal-imaginary*hImaginary;
+                    imaginary=real*hImaginary+imaginary*hReal;real=nextReal;
+                }
+                peak=Math.max(peak,Math.hypot(real,imaginary));
+            }
+            // Keep the user's band boost audible while the configured master and
+            // channel trims leave room. Reduce only the excess that could exceed
+            // full scale at the largest combined EQ response.
+            double predictedPeak=peak*largestOutputGain;
+            return predictedPeak<=1||predictedPeak<=0?1:1/predictedPeak;
         }
     }
 }

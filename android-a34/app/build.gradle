@@ -4,12 +4,14 @@ android {
     namespace 'br.com.sistema51.a34'
     compileSdk 36
     buildToolsVersion '35.0.0'
+    ndkVersion '27.0.12077973'
     defaultConfig {
         applicationId 'br.com.sistema51.a34'
         minSdk 28
         targetSdk 36
-        versionCode 6
-        versionName '0.6.0'
+        versionCode 17
+        versionName '0.9.2'
+        ndk { abiFilters 'arm64-v8a' }
     }
     buildTypes {
         debug { debuggable true }
@@ -22,6 +24,7 @@ android {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+    externalNativeBuild { cmake { path file('src/main/jni/CMakeLists.txt'); version '3.22.1' } }
 }
 
 dependencies { testImplementation 'junit:junit:4.13.2' }

@@ -17,6 +17,10 @@
 /android-a34/local.properties
 /android-a34/**/.cxx/
 /android-a34/artifacts/
+/android-a34/third-party/ffmpeg-8.0.3/
+/android-a34/third-party/ffmpeg-arm64/
+/android-a34/third-party/gpg/
+/android-a34/third-party/ffmpeg-8.0.3.tar.xz
 /android-a34/**/debug.keystore
 /android-a34/**/signing.properties
 !/.github/

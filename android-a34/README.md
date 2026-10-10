@@ -1,6 +1,22 @@
 # Sistema 5.1 — aplicativo do A34
 
-Versão atual **0.6.0**: crossover LR4 opcional de FL/FR/FC, filtro subsônico LFE e troca FC/LFE apenas na saída USB conforme o mapa físico confirmado em teste. O laboratório decide pelo número real de canais decodificados: 1/2 usam upmix; 6 permanecem nativos, inclusive quando o perfil selecionado era estéreo. O serviço USB PCM ainda exige modo e formato explicitamente compatíveis; a captura óptica comprimida continua pendente. Novos controles ficam desligados na migração para conservar perfis existentes.
+**Atualização 0.9.1 — 10/10/2026:** DSP atualizado no A34 e app **Controle 5.1** instalado no A55, com descoberta do A34 na rede, mestre 0–100, seis volumes por caixa e EQ geral. Corrigidos recuperação após diagnóstico USB, conflitos/falhas de rede e respostas tardias; decoder reutiliza PCM e volume reutiliza filtros. OTG direto funciona; hub PD permanece pendente. Veja [instalação, testes e limites](../docs/A34-CONTROLE-A55-E-REVISAO-2026-10-10.md).
+
+**Ajuste do equalizador geral — instalado no A34 em 10/10/2026:** o ganho de uma banda agora é preservado enquanto mestre e trims deixam margem digital. A compensação automática só reduz o sinal quando o pico previsto pode ultrapassar o limite; antes, todo reforço podia ser compensado integralmente e parecer sem efeito. O EQ aplica um filtro por banda aos seis canais. A instalação foi verificada por ADB sem limpar o perfil; falta confirmar a diferença ouvindo uma fonte com energia na frequência ajustada.
+
+**Revisão 0.9.2 (`versionCode 17`):** corrige a política de codec no A34: PCM/não Dolby mono/estéreo recebe upmix; AC-3/E-AC-3 fica nativo e AC-3 estéreo ocupa apenas FL/FR. Compilação, lint e testes passaram; APK pronto, aguardando instalação no aparelho.
+
+**0.8.5 instalada — 10/10/2026:** preservados perfil, mestre 0–100, volumes por canal na engrenagem e EQ geral. Correções no transporte/monitor e retomadas limitadas; validação física ainda interrompe com errno 16/110. Áudio silenciado e automático desligado enquanto o host USB é investigado. [Registro completo](../docs/A34-PAINEL-AUTOMATICO-QUALIDADE-2026-10-10.md).
+
+**0.8.4 — 10/10/2026:** mestre 0–100, engrenagem com volumes por canal e EQ geral, início automático com Dolby e recuperação de falha USB. Rampa de volume, transição do EQ sem limpar atrasos e interpolação cúbica de relógio. [Comportamento, pesquisa e validação](../docs/A34-PAINEL-AUTOMATICO-QUALIDADE-2026-10-10.md). Os parágrafos abaixo conservam as etapas anteriores.
+
+**Implementação 0.8.3 e seguintes:** transporte óptico USBFS contínuo, decoder FFmpeg AC-3, DSP, política de upmix por codec, resampling para diferenças de relógio e saída USB PCM16 de seis canais. Só PCM/não Dolby mono ou estéreo recebe upmix; AC-3/E-AC-3 e multicanal nativo são preservados. O painel LAN usa PIN de 4 dígitos; mestre, seis níveis por caixa e EQ gráfico de 10 bandas são editáveis. Um burst AC-3 com CRC inválido é descartado e a sessão tenta retomar no próximo quadro íntegro. A reprodução física, transições, latência e estabilidade continuam em validação; leia [pipeline contínuo Fire TV → A34](../docs/FIRE-TV-A34-PIPELINE-CONTINUO-2026-10-09.md).
+
+Na **0.7.0**, o controle web autenticado na porta 8051 e capturas ópticas curtas passaram no A34; o transporte ainda era de diagnóstico. O [relatório anterior](../docs/FIRE-TV-A34-CONTROLE-LOCAL-2026-10-09.md) conserva esse alcance e a configuração Fire TV DD+ / Bravia Auto 1 / DD+ Out desativado.
+
+Compilação da 0.8.3 exige também NDK **27.0.12077973**, CMake **3.22.1** e o decoder de software preparado conforme [third-party/README.md](third-party/README.md), ABI arm64-v8a. O Gradle instala os componentes oficiais quando a licença do SDK já está aceita. Os parágrafos a seguir documentam o histórico da 0.6.0.
+
+Na versão **0.6.0** (histórica) havia crossover LR4 opcional de FL/FR/FC, filtro subsônico LFE e troca FC/LFE apenas na saída USB. A decisão antiga do laboratório por contagem de canais foi substituída pela política que acompanha o codec original, acima.
 
 Versão **0.6.0**, atualizada em **09/10/2026**. Aplicativo Android real com painel, edição do perfil, DSP, bancada de arquivos e diagnóstico USB. O histórico de validação no Galaxy A34 `SM-A346M`, Android 14, está nos relatórios abaixo. A CM6206 real foi reconhecida pelo telefone em testes anteriores usando um adaptador USB-A fêmea/USB-C macho OTG, sem hub alimentado.
 

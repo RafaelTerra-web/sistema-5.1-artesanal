@@ -6,11 +6,10 @@ import android.hardware.usb.UsbDeviceConnection;
 import java.io.IOException;
 
 /**
- * Extension point for a future, physically validated raw USB capture backend.
- * There is intentionally no implementation: Android AudioRecord yields PCM and cannot
- * establish that S/PDIF AC-3/IEC61937 bursts survive a particular USB interface.
- * A backend must prove byte preservation, packet ordering and continuous capture on
- * the real interface before reporting VALIDATED_IEC61937_AC3.
+ * Raw USB capture contract. Android AudioRecord yields PCM and cannot establish
+ * that S/PDIF AC-3/IEC61937 bursts survive a particular USB interface. The CM6206
+ * implementation uses the physically measured S/PDIF source and duplex endpoints;
+ * callers still validate every AC-3 burst and track runtime continuity errors.
  */
 public interface EncodedUsbAudioTransport extends AutoCloseable {
     enum Validation { NOT_VALIDATED, VALIDATED_PCM_ONLY, VALIDATED_IEC61937_AC3 }

@@ -13,12 +13,13 @@ public final class DspEngineTest {
         trimsMuteBypassAndInputContracts();
         explicitStereoUpmix();
         eqGainAndChannelIsolation();
+        generalEqAcrossAllChannels();
         crossoverAmplitudeAndBassTiming();
         centerCopyLeavesCenterFullRange();
         headroomAndFiniteOutput();
         profileChangesAndReset();
         blockPartitionInvariance();
-        System.out.println("DSP JVM acceptance: PASS (" + checks + " assertions / 11 scenarios)");
+        System.out.println("DSP JVM acceptance: PASS (" + checks + " assertions / 12 scenarios)");
     }
 
     private static void defaultsAndValidation() {
@@ -53,6 +54,8 @@ public final class DspEngineTest {
         rejects("EQ boost bound", () -> AudioProfile.builder().lfeEqGainDb(1, 6.01f).build());
         rejects("EQ frequency bound", () -> AudioProfile.builder().lfeEqFrequencyHz(1, 201).build());
         rejects("EQ Q bound", () -> AudioProfile.builder().lfeEqQ(1, 0.2f).build());
+        rejects("general EQ band index",()->AudioProfile.builder().generalEqGainDb(10,0));
+        rejects("general EQ boost bound",()->AudioProfile.builder().generalEqGainDb(0,6.01f).build());
         rejects("manual headroom bound", () -> AudioProfile.builder().lfeHeadroom(2).build());
         rejects("surround cutoff bound", () -> AudioProfile.builder().surroundCutoffHz(121).build());
         rejects("surround send bound", () -> AudioProfile.builder().surroundBassSend(1.01f).build());
@@ -158,6 +161,23 @@ public final class DspEngineTest {
         close("RBJ peak -12dB at50Hz", Math.pow(10, -12.0 / 20), sineGain(cut, 50, 3, 3), 1e-5);
         close("EQ does not affect fronts", 1, sineGain(boost, 50, 0, 0), 1e-7);
         close("EQ does not create LFE from front", 0, sineGain(boost, 50, 0, 3), 0);
+    }
+
+    private static void generalEqAcrossAllChannels(){
+        AudioProfile flat=flat().toBuilder().generalEqEnabled(true).build();
+        AudioProfile.Builder builder=flat.toBuilder();
+        AudioProfile shaped=builder.generalEqGainDb(5,6).build();
+        double mid=sineGain(shaped,1000,0,0),high=sineGain(shaped,10000,0,0);
+        truth("general EQ changes tonal balance",mid/high>1.8);
+        for(int channel=0;channel<AudioProfile.CHANNEL_COUNT;channel++)
+            close("global EQ affects channel "+channel,mid,sineGain(shaped,1000,channel,channel),2e-5);
+        close("global EQ does not leak between channels",0,sineGain(shaped,1000,0,1),0);
+        AudioProfile disabled=shaped.toBuilder().generalEqEnabled(false).build();
+        close("global EQ can be bypassed",1,sineGain(disabled,1000,0,0),1e-7);
+        AudioProfile snapshot=builder.build();
+        builder.generalEqGainDb(5,-12);
+        close("global EQ builder snapshot remains immutable",6,snapshot.getGeneralEqGainDb(5),0);
+        close("graphic EQ center frequency",1000,AudioProfile.getGeneralEqFrequencyHz(5),0);
     }
 
     private static void crossoverAmplitudeAndBassTiming() {

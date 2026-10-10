@@ -1,14 +1,22 @@
 # Sistema 5.1 artesanal
 
+**Estado atual — 10/10/2026:** DSP 0.9.1 instalado no Galaxy A34 e controle **Controle 5.1** instalado no A55. A última instalação no A34 inclui a correção do equalizador geral, ainda aguardando confirmação auditiva. A cadeia óptica contínua está implementada e foi observada em execução pelo OTG, com eventos de reposição de fila/quadros inválidos em algumas transições; sessões prolongadas, hub PD e montagem Fire TV → Bravia → óptica continuam em validação. Leia [retomada e próximos passos](docs/RETOMADA-PROXIMO-CHAT.md) e [relatório de instalação e ensaios](docs/A34-CONTROLE-A55-E-REVISAO-2026-10-10.md).
+
+**Regra de áudio vigente:** somente mono/estéreo PCM ou identificado como não Dolby recebe upmix. AC-3/E-AC-3 não recebe upmix, mesmo quando decodificado em um ou dois canais; 5.1 nativo mantém os canais. A entrada óptica implementada aceita AC-3 e, para AC-3 estéreo, encaminha L/R às frontais sem fabricar central, surround ou LFE. Portadora IEC61937 nunca entra no DSP como PCM.
+
+**Revisão de compatibilidade 0.9.2:** política de codec corrigida, EQ geral mantido com headroom perceptível e indicadores do painel alinhados. Compilação, lint e testes passaram; APK ainda aguarda instalação no A34. Consulte o [estado de retomada](docs/RETOMADA-PROXIMO-CHAT.md).
+
+O relatório de [pipeline Fire TV → A34](docs/FIRE-TV-A34-PIPELINE-CONTINUO-2026-10-09.md) documenta a implementação óptica; [controle no A55 e revisão de áudio/interface](docs/A34-CONTROLE-A55-E-REVISAO-2026-10-10.md) separa os testes de software dos ensaios físicos.
+
 Código desenvolvido para transformar o áudio compartilhado do Windows em Dolby Digital 5.1, corrigir o tempo entre as caixas, ajustar o subwoofer e controlar o PC pelo celular. Este repositório reúne a implementação e o conhecimento para aproveitar os módulos em outro projeto.
 
 **Comece por [Reaproveitar em outro projeto](docs/REAPROVEITAMENTO.md).** Para entender as decisões e limitações, leia [Arquitetura](docs/ARQUITETURA.md) e [Estado e validação](docs/ESTADO-E-VALIDACAO.md).
 
-**Continuidade da bancada em 09/10/2026:** leia primeiro o [ponto de retomada do próximo chat](docs/RETOMADA-PROXIMO-CHAT.md). PCM/upmix no PC restaurado e confirmado por escuta; mestre 0,15, sub +3 dB, envio central grave 50%. AC-3/E-AC-3 não recebem upmix, inclusive Dolby estéreo. A óptica contínua e a cadeia independente no A34 permanecem pendentes. As seções antigas abaixo preservam a arquitetura exportada anterior.
+**Continuidade da bancada:** a rota PCM do PC teve confirmação auditiva, com mestre 0,15, sub +3 dB e envio de 50% dos graves da central. A placa foi transferida ao A34; consulte a retomada para o perfil, os atrasos e os próximos testes. As seções antigas abaixo são histórico de versões anteriores e não substituem a regra de áudio vigente no início deste arquivo.
 
-## Plano aprovado para o Galaxy A34
+## Plano aprovado para o Galaxy A34 — histórico da 0.6.0
 
-A versão atual é **0.6.0**, instalada e testada no A34 em 09/10/2026. Acrescenta crossover frontal/central, filtro subsônico e troca central/LFE na saída USB. Arquivos com seis canais decodificados permanecem nativos automaticamente; o laboratório atual seleciona upmix pelo número de canais. Ainda falta propagar o codec original no Android para também preservar Dolby estéreo, como exige a regra final. A [bancada PCM no PC](docs/PC-CM6206-PCM.md) verifica o grafo sem recodificação Dolby. Reprodução USB e captura óptica completas no A34 ainda dependem de validação física. O parágrafo abaixo registra a etapa 0.4.0.
+Na etapa **0.6.0** (histórica), foram acrescentados crossover frontal/central, filtro subsônico e troca central/LFE na saída USB. A decisão antiga do laboratório apenas por contagem de canais foi substituída pelo transporte do codec original, descrito na implementação atual. Consulte a [bancada PCM no PC](docs/PC-CM6206-PCM.md) para o grafo sem recodificação Dolby e o relatório de retomada para validações físicas pendentes.
 
 **Atualização de 09/10/2026:** o [aplicativo A34 0.4.0](android-a34/README.md) incorpora upmix ajustável, modos Preencher caixas/Ambiência e ferramentas de bancada. A rota HDMI 2 → Sony → óptico → CM6206 → USB no Windows recebeu e decodificou AC-3 de seis canais com CRC válido. Use **Sistema de áudio / Auto 1 / DD+ Não** na TV para a condição que passou. As seis caixas foram ouvidas no teste direto USB, após habilitar REG2.DRIVERON; o par surround exato continua aberto. Consulte o [relatório consolidado e próximos passos](docs/PROGRESSO-A34-E-UPMIX-2026-10-09.md) e a [comunicação CM6206](docs/CM6206-COMUNICACAO-2026-10-09.md). Captura comprimida, controle analógico integrado e mapa físico no Android, além da estabilidade completa, continuam pendentes; o plano abaixo preserva o histórico anterior.
 

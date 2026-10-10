@@ -33,10 +33,13 @@ function Read-State {
 function State-OwnerAlive($state) {
     if(-not $state.RunnerId -or -not $state.RunnerStartedUtc){return $false}
     $process=Get-Process -Id ([int]$state.RunnerId) -ErrorAction SilentlyContinue
-    try {return ($process -and $process.StartTime.ToUniversalTime().ToString('o') -eq $state.RunnerStartedUtc)} catch {return $false}
+    # PowerShell 7.5 can deserialize ISO JSON dates to DateTime; compare instants,
+    # rather than a string against an object. PS5 DateTime JSON has millisecond
+    # precision; accept only that serialization loss, never a different owner.
+    try {return ($process -and [Math]::Abs(($process.StartTime.ToUniversalTime()-([DateTimeOffset]$state.RunnerStartedUtc).UtcDateTime).TotalMilliseconds) -lt 1)} catch {return $false}
 }
 function State-Fresh($state) {
-    try {$age=([DateTimeOffset]::UtcNow-[DateTimeOffset]::Parse($state.AtualizadoEm)).TotalSeconds;return ($age -ge -2 -and $age -le 30)} catch {return $false}
+    try {$age=([DateTimeOffset]::UtcNow-[DateTimeOffset]$state.AtualizadoEm).TotalSeconds;return ($age -ge -2 -and $age -le 30)} catch {return $false}
 }
 function Emit-State($state) { $state|ConvertTo-Json -Depth 9 -Compress }
 function Save-Json($path,$value) {

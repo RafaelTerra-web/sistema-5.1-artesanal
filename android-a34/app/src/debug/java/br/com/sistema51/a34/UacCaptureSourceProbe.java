@@ -26,7 +26,12 @@ public final class UacCaptureSourceProbe {
     private UacCaptureSourceProbe() { }
 
     public static JSONObject readSnapshot(Context context, int deviceId) {
+        return readSnapshot(context, deviceId, false);
+    }
+    /** Read-only firmware compatibility experiment; device recipient is not UAC1 standard. */
+    public static JSONObject readSnapshot(Context context, int deviceId, boolean deviceRecipientDiagnostic) {
         JSONObject report = baseReport();
+        put(report, "deviceRecipientDiagnostic", deviceRecipientDiagnostic);
         put(report, "deviceId", deviceId);
         UsbDeviceConnection connection = null;
         try {
@@ -99,7 +104,7 @@ public final class UacCaptureSourceProbe {
                                 return fail(report, "selector_limit", "Limite de oito seletores atingido.");
                             queried.add(key);
                             byte[] state = new byte[1];
-                            int read = connection.controlTransfer(0xa1, 0x81, 0,
+                            int read = connection.controlTransfer(deviceRecipientDiagnostic ? 0xa0 : 0xa1, 0x81, 0,
                                     (entity.id << 8) | group.id, state, 1, TIMEOUT_MS);
                             int pin = read == 1 ? unsigned(state[0]) : -1;
                             entity.getCurBytes = read;
@@ -112,7 +117,7 @@ public final class UacCaptureSourceProbe {
                         Entity entity = group.entities.get(entityId);
                         if (entity.subtype != 5) continue;
                         JSONObject selector = entityJson(entity);
-                        put(selector, "requestType", "0xA1"); put(selector, "request", "0x81 GET_CUR");
+                        put(selector, "requestType", deviceRecipientDiagnostic ? "0xA0 diagnostic" : "0xA1"); put(selector, "request", "0x81 GET_CUR");
                         put(selector, "wValue", 0); put(selector, "wIndex", (entity.id << 8) | group.id);
                         put(selector, "getCurBytes", entity.getCurBytes);
                         put(selector, "selectedPinOneBased", entity.selectedPin);

@@ -59,6 +59,8 @@ public abstract class AppBridge {
             p.put("lfeEqFrequenciesHz", new JSONArray(new int[] {20, 25, 30, 40, 50, 60, 80, 100, 120}));
             p.put("lfeEqGainDb", new JSONArray(new double[] {6, 6, 6, 5.5, 1.5, -4, 1, 1, -2.5}));
             p.put("lfeEqQ", new JSONArray(new double[] {2, 2, 2, 2, 2, 2, 2, 2, 2}));
+            p.put("generalEqEnabled", true);
+            p.put("generalEqGainDb", new JSONArray(new double[] {0,0,0,0,0,0,0,0,0,0}));
             p.put("lfeHeadroom", 1.0 / 3.0);
             p.put("automaticLfeHeadroom", true);
             p.put("surroundCrossoverEnabled", true);

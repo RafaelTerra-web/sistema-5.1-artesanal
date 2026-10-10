@@ -17,6 +17,9 @@ public final class PlatformAc3Decoder {
     private static final int[] COUNTS={2,1,2,3,3,4,4,5};
     private static final class Frame { int offset,size,channels; Frame(int o,int s,int c){offset=o;size=s;channels=c;} }
     public static JSONObject decode(File input, File output) throws Exception {
+        return decode(input,output,false);
+    }
+    public static JSONObject decode(File input, File output,boolean eosOnLastFrame) throws Exception {
         if(input.length()>128L*1024*1024) throw new IOException("AC-3 maior que o limite de teste de 128 MiB.");
         byte[] data=new byte[(int)input.length()];try(DataInputStream in=new DataInputStream(new FileInputStream(input))){in.readFully(data);}
         List<Frame> frames=new ArrayList<>();int expectedChannels=0;
@@ -34,7 +37,7 @@ public final class PlatformAc3Decoder {
         }
         if(frames.isEmpty())throw new IOException("AC-3 vazio.");
         MediaCodec codec=null;WavIO.Writer writer=null;boolean started=false;long begin=System.nanoTime(),lastProgress=begin;
-        int queued=0,returned=0,outputChannels=0,encoding=0;long outputFrames=0;boolean inputEos=false,eos=false;
+        int queued=0,returned=0,outputChannels=0,encoding=0;long outputFrames=0,firstPts=-1,lastPts=-1;boolean inputEos=false,eos=false;
         String name="";String formatText="";float[] converted=new float[480*6];
         try {
             codec=MediaCodec.createDecoderByType("audio/ac3");name=codec.getName();
@@ -49,7 +52,9 @@ public final class PlatformAc3Decoder {
                 boolean progress=false;
                 if(!inputEos){int index=codec.dequeueInputBuffer(0);if(index>=0){
                     ByteBuffer buffer=codec.getInputBuffer(index);if(buffer==null)throw new IOException("Buffer do codec indisponível.");buffer.clear();
-                    if(queued<frames.size()){Frame f=frames.get(queued);if(buffer.remaining()<f.size)throw new IOException("Buffer AC-3 curto.");buffer.put(data,f.offset,f.size);codec.queueInputBuffer(index,0,f.size,queued*32000L,0);queued++;}
+                    if(queued<frames.size()){Frame f=frames.get(queued);if(buffer.remaining()<f.size)throw new IOException("Buffer AC-3 curto.");buffer.put(data,f.offset,f.size);
+                        boolean last=eosOnLastFrame&&queued==frames.size()-1;
+                        codec.queueInputBuffer(index,0,f.size,queued*32000L,last?MediaCodec.BUFFER_FLAG_END_OF_STREAM:0);queued++;if(last)inputEos=true;}
                     else {codec.queueInputBuffer(index,0,0,queued*32000L,MediaCodec.BUFFER_FLAG_END_OF_STREAM);inputEos=true;}
                     progress=true;
                 }}
@@ -64,6 +69,7 @@ public final class PlatformAc3Decoder {
                 }else if(index>=0){
                     try{
                         if(info.size>0&&(info.flags&MediaCodec.BUFFER_FLAG_CODEC_CONFIG)==0){
+                            if(firstPts<0)firstPts=info.presentationTimeUs;lastPts=info.presentationTimeUs;
                             if(writer==null)throw new IOException("Codec devolveu PCM sem descrever o formato.");
                             ByteBuffer buffer=codec.getOutputBuffer(index);if(buffer==null)throw new IOException("PCM do codec indisponível.");
                             buffer.position(info.offset);buffer.limit(info.offset+info.size);buffer.order(ByteOrder.LITTLE_ENDIAN);
@@ -86,6 +92,7 @@ public final class PlatformAc3Decoder {
                     .put("inputSampleFrames",frames.size()*1536L).put("outputSampleFrames",outputFrames)
                     .put("sampleFrameDifference",outputFrames-frames.size()*1536L).put("outputBuffers",returned).put("eosReceived",eos)
                     .put("channels",outputChannels).put("sampleRate",48000).put("format",formatText)
+                    .put("eosOnLastFrame",eosOnLastFrame).put("firstOutputTimestampUs",firstPts).put("lastOutputTimestampUs",lastPts)
                     .put("runtimeMs",(System.nanoTime()-begin)/1000000.0)
                     .put("fidelityValidated",false).put("note","Codec Samsung experimental: testes anteriores observaram ganho variável e diferença de duração. Sem garantia de decodificação transparente ou gapless.");
         }finally{

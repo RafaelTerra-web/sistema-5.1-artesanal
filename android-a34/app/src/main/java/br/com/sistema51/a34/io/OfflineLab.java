@@ -7,6 +7,7 @@ import org.json.JSONObject;
 import br.com.sistema51.a34.ProfileStore;
 import br.com.sistema51.a34.dsp.AudioProfile;
 import br.com.sistema51.a34.dsp.DspEngine;
+import br.com.sistema51.a34.dsp.SourceAudioPolicy;
 import java.io.*;
 import java.util.Arrays;
 
@@ -28,24 +29,29 @@ public final class OfflineLab {
         if((signature[0]&255)==11&&(signature[1]&255)==119){codec=PlatformAc3Decoder.decode(source,decoded);pcm=decoded;}
         else if(!(signature[0]=='R'&&signature[1]=='I'&&signature[2]=='F'&&signature[3]=='F'))throw new IOException("Escolha WAV PCM16/float32 ou AC-3 elementar a 48 kHz.");
         output=new File(dir,"processed-"+System.currentTimeMillis()+".wav");
-            JSONObject report=processWav(pcm,output,profile);if(codec!=null)report.put("decoder",codec);
+            JSONObject report=processWav(pcm,output,profile,codec==null?SourceAudioPolicy.Codec.PCM:SourceAudioPolicy.Codec.AC3);if(codec!=null)report.put("decoder",codec);
             report.put("sourceUri",input.toString()).put("outputFile",output.getName());
             return new Result(report,output);
         }catch(Exception e){if(output!=null)output.delete();throw e;}
         finally{source.delete();decoded.delete();}
     }
     public static JSONObject processWav(File source,File output,AudioProfile profile)throws Exception{
+        return processWav(source,output,profile,SourceAudioPolicy.Codec.PCM);
+    }
+    public static JSONObject processWav(File source,File output,AudioProfile profile,SourceAudioPolicy.Codec originalCodec)throws Exception{
         DspEngine engine=new DspEngine(480);engine.setProfile(profile);
         long blocks=0,totalNs=0,maxNs=0,inputFrames=0;int tail=0;for(int c=0;c<6;c++)tail=Math.max(tail,profile.isBypass()?0:profile.getDelaySamples(c));
         float[] input=new float[480*6],processed=new float[480*6];
         try(WavIO.Reader reader=new WavIO.Reader(source);WavIO.Writer writer=new WavIO.Writer(output,6)){
             String requestedMode=profile.getInputMode().name();
-            profile=profile.forSourceChannels(reader.channels);engine.setProfile(profile);
-            float[] monoStereo=reader.channels==1?new float[480*2]:null;
-            int processingChannels=reader.channels==1?2:reader.channels;
+            profile=SourceAudioPolicy.profileFor(profile,originalCodec,reader.channels);engine.setProfile(profile);
+            boolean nativeShort=reader.channels<6&&!SourceAudioPolicy.shouldUpmix(originalCodec,reader.channels);
+            float[] monoStereo=nativeShort?new float[480*6]:reader.channels==1?new float[480*2]:null;
+            int processingChannels=nativeShort?6:reader.channels==1?2:reader.channels;
             int count;while((count=reader.readFrames(input,480))>0){
                 if(Thread.currentThread().isInterrupted())throw new InterruptedIOException("Cancelado.");
-                if(monoStereo!=null)for(int i=0;i<count;i++){monoStereo[2*i]=input[i];monoStereo[2*i+1]=input[i];}
+                if(nativeShort)SourceAudioPolicy.expandNative(input,reader.channels,monoStereo,count);
+                else if(monoStereo!=null)for(int i=0;i<count;i++){monoStereo[2*i]=input[i];monoStereo[2*i+1]=input[i];}
                 long start=System.nanoTime();engine.process(monoStereo==null?input:monoStereo,processingChannels,processed,count);long elapsed=System.nanoTime()-start;totalNs+=elapsed;maxNs=Math.max(maxNs,elapsed);blocks++;
                 writer.writeFrames(processed,count);inputFrames+=count;
             }
@@ -53,7 +59,7 @@ public final class OfflineLab {
             JSONArray peaks=new JSONArray();for(int c=0;c<6;c++)peaks.put(engine.getChannelPeak(c));
             return new JSONObject().put("ok",true).put("kind","offline_dsp").put("inputFrames",inputFrames).put("outputFrames",writer.frames())
                     .put("tailFrames",tail).put("sampleRate",48000).put("channels",6).put("inputChannels",reader.channels)
-                    .put("inputModeDecision","decoded_channel_count").put("requestedInputMode",requestedMode)
+                    .put("inputModeDecision","original_codec_and_decoded_channels").put("originalCodec",originalCodec.name()).put("requestedInputMode",requestedMode)
                     .put("blocks",blocks).put("processingWallMs",totalNs/1000000.0).put("maxProcessingBlockMs",maxNs/1000000.0)
                     .put("clippedSamples",engine.getClippedSamples()).put("nonFiniteInputSamples",engine.getNonFiniteInputSamples()).put("lastBlockPeaks",peaks)
                     .put("profile",ProfileStore.toJson(profile,"Arquivo"))

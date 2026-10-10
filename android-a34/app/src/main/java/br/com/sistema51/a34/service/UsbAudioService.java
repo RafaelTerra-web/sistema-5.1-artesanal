@@ -11,6 +11,8 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbDeviceConnection;
+import android.hardware.usb.UsbManager;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceCallback;
 import android.media.AudioDeviceInfo;
@@ -53,9 +55,10 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class UsbAudioService extends Service {
     public static final String ACTION_START_PCM = "br.com.sistema51.a34.START_PCM";
+    public static final String ACTION_START_OPTICAL = "br.com.sistema51.a34.START_OPTICAL";
     public static final String ACTION_STOP_AUDIO = "br.com.sistema51.a34.STOP_AUDIO";
     public static final String EXTRA_USB_DEVICE_ID = "usbDeviceId";
-    public static final String OPTICAL_AC3_STATUS = "Captura óptica AC-3 direta pendente validação da interface; PCM USB disponível.";
+    public static final String OPTICAL_AC3_STATUS = "CM6206: IEC61937 AC-3 48 kHz → decoder de software → DSP → USB PCM16 5.1.";
     public static final int SAMPLE_RATE = 48000;
     public static final int OUTPUT_CHANNELS = 6;
     public static final int BLOCK_FRAMES = 480;
@@ -86,6 +89,13 @@ public final class UsbAudioService extends Service {
     private volatile Thread audioThread;
     private volatile boolean stopRequested;
     private volatile DspEngine dspEngine;
+    private volatile OpticalAudioSession opticalSession;
+    private volatile AudioProfile opticalProfile;
+    private final Object opticalProfileLock = new Object();
+    private volatile boolean opticalRoute;
+    private volatile JSONObject opticalStatus = new JSONObject();
+    private volatile String opticalError = "";
+    private volatile long opticalWakeRenewal;
     private volatile int selectedUsbDeviceId = -1;
     private volatile AudioDeviceInfo selectedInput;
     private volatile AudioDeviceInfo selectedOutput;
@@ -170,7 +180,15 @@ public final class UsbAudioService extends Service {
     @Override public IBinder onBind(Intent intent) { return binder; }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && ACTION_START_PCM.equals(intent.getAction())) {
+        if(intent!=null&&(ACTION_START_OPTICAL.equals(intent.getAction())||ACTION_START_PCM.equals(intent.getAction()))
+                &&(running||starting||stopping))return START_NOT_STICKY;
+        if (intent != null && ACTION_START_OPTICAL.equals(intent.getAction())) {
+            opticalRoute = true;
+            try { enterForeground(); }
+            catch (RuntimeException failure) { fail("foreground_failed", "Não foi possível abrir a sessão", safeMessage(failure)); stopSelf(startId); return START_NOT_STICKY; }
+            if (!queueOptical(intent.getIntExtra(EXTRA_USB_DEVICE_ID, -1), startId)) stopSelf(startId);
+        } else if (intent != null && ACTION_START_PCM.equals(intent.getAction())) {
+            opticalRoute = false;
             // Honor the foreground-service deadline even if native teardown is still queued.
             try {
                 if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) enterForeground();
@@ -365,6 +383,14 @@ public final class UsbAudioService extends Service {
     }
 
     public boolean updateProfile(AudioProfile profile) {
+        if (opticalRoute && profile != null) {
+            synchronized(opticalProfileLock){
+            opticalProfile = profile;
+            OpticalAudioSession session = opticalSession;
+            if (session != null) session.updateProfile(profile);
+            }
+            return true;
+        }
         DspEngine engine = dspEngine;
         if (engine == null || profile == null) return false;
         if ((inputChannels == 2 && profile.getInputMode() != AudioProfile.InputMode.STEREO_UPMIX)
@@ -376,14 +402,80 @@ public final class UsbAudioService extends Service {
         return true;
     }
 
-    /** Kept separate from PCM: AudioRecord is not evidence of a raw AC-3 USB path. */
     public boolean startOpticalAc3(int usbDeviceId) {
-        if (running) {
-            setStatus("running", "DSP PCM USB em execução", "Pare a sessão PCM antes de testar outro transporte. " + OPTICAL_AC3_STATUS);
-            return false;
-        }
-        fail("optical_ac3_unvalidated", "Captura óptica AC-3 pendente", OPTICAL_AC3_STATUS);
-        return false;
+        return queueOptical(usbDeviceId, activeStartId);
+    }
+
+    private boolean queueOptical(int usbDeviceId, int startId) {
+        if (destroying || running || stopping || !startQueued.compareAndSet(false, true)) return false;
+        final long expectedEpoch = stopEpoch.get();
+        opticalRoute = true;
+        opticalProfile = ProfileStore.load(this);
+        opticalError = ""; opticalStatus = new JSONObject(); starting = true;
+        setStatus("starting", "Preparando Fire TV óptico", "A saída permanece silenciosa até validar os quadros e o decoder.");
+        try {
+            control.execute(() -> {
+                UsbDeviceConnection opened = null;
+                boolean handedToWorker = false;
+                try {
+                    if (stopEpoch.get()!=expectedEpoch || destroying) return;
+                    UsbDevice device = usbController.findDevice(usbDeviceId);
+                    if (device == null || device.getVendorId()!=0x0d8c || device.getProductId()!=0x0102)
+                        throw new IllegalStateException("Selecione a CM6206 0d8c:0102 validada.");
+                    if (!usbController.hasPermission(usbDeviceId)) throw new IllegalStateException("Autorize USB para a CM6206.");
+                    UsbManager manager=(UsbManager)getSystemService(USB_SERVICE);
+                    UsbDeviceConnection connection=manager.openDevice(device);
+                    opened=connection;
+                    if(connection==null)throw new IllegalStateException("Não foi possível abrir a CM6206.");
+                    if(stopEpoch.get()!=expectedEpoch||destroying){connection.close();return;}
+                    selectedUsbDeviceId=usbDeviceId; selectedInput=selectedOutput=null; inputChannels=0;
+                    inputSummary="CM6206 SPDIF IN • IEC61937 AC-3 • 48 kHz";
+                    outputSummary="CM6206 EP 0x06 • PCM16 6 canais • 48 kHz";
+                    routeMatch="Interfaces CM6206 verificadas, USBFS exclusivo; sem mixer Android.";
+                    activeStartId=startId;audioEpoch=expectedEpoch;stopRequested=false;
+                    OpticalAudioSession session;
+                    synchronized(opticalProfileLock){
+                    session=new OpticalAudioSession(this,device,connection,opticalProfile,new OpticalAudioSession.Listener(){
+                        @Override public void status(JSONObject snapshot){
+                            opticalStatus=snapshot;inputChannels=snapshot.optInt("sourceChannels");
+                            long now=android.os.SystemClock.elapsedRealtime();
+                            if(now-opticalWakeRenewal>5*60*1000L){PowerManager.WakeLock held=wakeLock;if(held!=null)held.acquire(10*60*1000L);opticalWakeRenewal=now;}
+                            if(!sessionStopping(expectedEpoch))setStatus(snapshot.optBoolean("signalReady")?"running":"waiting_signal",
+                                snapshot.optBoolean("signalReady")?"Fire TV óptico em execução":"Aguardando áudio Dolby",
+                                snapshot.optBoolean("signalReady")?(snapshot.optBoolean("upmixActive")?"Mono/estéreo decodificado com Upmix para seis caixas.":"5.1 nativo preservado no DSP."):"Sem quadro AC-3 válido recente; saída silenciosa.");
+                        }
+                        @Override public void ended(String error){
+                            Runnable finish=()->{
+                                if(audioEpoch!=expectedEpoch)return;
+                                opticalError=error;
+                                if(!error.isEmpty())setStatus("audio_failed","Fire TV óptico interrompido",error);
+                                android.content.SharedPreferences automatic=getSharedPreferences("audio_automation_v1",MODE_PRIVATE);
+                                boolean retry=!error.isEmpty()&&automatic.getBoolean("enabled",true)&&!automatic.getBoolean("paused",false);
+                                if(!retry){leaveForeground();if(startId>0)stopSelf(startId);}releaseWakeLock();
+                                opticalSession=null;audioThread=null;starting=false;stopping=false;running=false;
+                            };
+                            try{control.execute(finish);}catch(RejectedExecutionException closing){finish.run();}
+                        }
+                    });
+                    opticalSession=session;
+                    }
+                    if(stopEpoch.get()!=expectedEpoch){session.stop();connection.close();opticalSession=null;return;}
+                    enterForeground();
+                    PowerManager power=(PowerManager)getSystemService(POWER_SERVICE);
+                    wakeLock=power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,getPackageName()+":UsbOptical");
+                    wakeLock.setReferenceCounted(false);wakeLock.acquire(10*60*1000L);
+                    opticalWakeRenewal=android.os.SystemClock.elapsedRealtime();
+                    synchronized(statusLock){startedAtMillis=System.currentTimeMillis();}
+                    running=true;starting=false;
+                    audioThread=new Thread(session,"A34-Optical-DSP");audioThread.start();
+                    handedToWorker=true;
+                }catch(RuntimeException failure){
+                    opticalError=safeMessage(failure);fail("start_failed","Não foi possível iniciar Fire TV óptico",opticalError);
+                    if(startId>0)stopSelf(startId);
+                }finally{if(!handedToWorker&&opened!=null){opened.close();opticalSession=null;}starting=false;startQueued.set(false);if(!running){leaveForeground();releaseWakeLock();}}
+            });
+            return true;
+        }catch(RejectedExecutionException failure){starting=false;startQueued.set(false);return false;}
     }
 
     public void stopAudio() {
@@ -394,6 +486,8 @@ public final class UsbAudioService extends Service {
         // Publish the gate immediately. The control worker handles native calls and the join.
         stopEpoch.incrementAndGet();
         stopRequested = true;
+        OpticalAudioSession optical = opticalSession;
+        if (optical != null) optical.stop();
         stopping = running || starting;
         setStatus(state, title, detail);
         if (!stopQueued.compareAndSet(false, true)) return;
@@ -651,9 +745,26 @@ public final class UsbAudioService extends Service {
             result.put("inputSummary", inputSummary);
             result.put("outputSummary", outputSummary);
             result.put("opticalAc3", OPTICAL_AC3_STATUS);
-            result.put("transport", "AudioRecord PCM16 USB → DSP → AudioTrack PCM_FLOAT USB 5.1");
-            result.put("clockCalibration", "Pendente: sem resampling adaptativo ou compensação de relógios independentes.");
-            result.put("bitPerfect", "Não comprovado: Android pode aplicar conversão e processamento no caminho PCM.");
+            result.put("audioRoute", opticalRoute?"optical":"pcm");
+            result.put("sourcePolicyAutomatic", opticalRoute);
+            result.put("opticalAc3Ready", true);
+            result.put("runtimeError", opticalRoute?opticalError:"");
+            result.put("transport", opticalRoute?OPTICAL_AC3_STATUS:"AudioRecord PCM16 USB → DSP → AudioTrack PCM_FLOAT USB 5.1");
+            if(opticalRoute){
+                JSONObject snapshot=opticalStatus;
+                java.util.Iterator<String> keys=snapshot.keys();while(keys.hasNext()){String key=keys.next();result.put(key,snapshot.get(key));}
+                result.put("inputChannels",snapshot.optInt("sourceChannels"));
+                result.put("blockFrames",1536);
+                result.put("processingMeaning","Decoder, DSP e resampling como fração dos 32 ms de áudio; exclui espera USB e não mede CPU total nem latência física.");
+                result.put("clipping",snapshot.optLong("clippingSamples")>0);
+                if(!running){
+                    result.put("runtimeMuted",true).put("signalReady",false).put("sourceChannels",0).put("sourceCodec","stopped");
+                    result.put("upmixActive",false).put("meters",new JSONArray(new float[6])).put("peaks",new JSONArray(new float[6]));
+                }
+            }
+            result.put("clockCalibration", opticalRoute?"Resampling contínuo, PI lento limitado a ±1000 ppm; validar estabilidade na montagem final.":"Pendente: sem compensação de relógios independentes no PCM Android.");
+            result.put("bitPerfect", opticalRoute?"AC-3 validado por CRC, decoder float com DRC/dialnorm desativados; DSP e resampling alteram o PCM intencionalmente.":"Não comprovado: Android pode aplicar conversão e processamento no caminho PCM.");
+            result.put("decoder",opticalRoute?"FFmpeg 8.0.3 AC-3 software, 1536 amostras por quadro, 48 kHz":"PCM Android");
             result.put("latencyMeasured", false);
         } catch (JSONException impossible) { throw new IllegalStateException(impossible); }
         return result;
@@ -751,12 +862,12 @@ public final class UsbAudioService extends Service {
         PendingIntent stopIntent = PendingIntent.getService(this, 51, stop, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
         Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID).setContentTitle("Sistema 5.1 • DSP USB")
-                .setContentText("Captura PCM e processamento em andamento.").setSmallIcon(R.drawable.ic_notification)
+                .setContentText(opticalRoute?"Fire TV óptico, decoder e DSP USB.":"Captura PCM e processamento em andamento.").setSmallIcon(R.drawable.ic_notification)
                 .setCategory(Notification.CATEGORY_SERVICE).setOngoing(true)
                 .addAction(new Notification.Action.Builder(android.R.drawable.ic_media_pause, "Parar DSP", stopIntent).build());
         if (launch != null) builder.setContentIntent(PendingIntent.getActivity(this, 52, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
         if (Build.VERSION.SDK_INT >= 30) {
-            startForeground(NOTIFICATION_ID, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK | ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
+            startForeground(NOTIFICATION_ID, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK | (opticalRoute?0:ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE));
         } else {
             startForeground(NOTIFICATION_ID, builder.build());
         }

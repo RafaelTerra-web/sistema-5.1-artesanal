@@ -19,6 +19,11 @@ try {
     $state=@{Estado='Em execução';Ligado=$true;Solicitado=$true;Modo='Pcm';InputMode='Native';RunnerId=$PID;RunnerStartedUtc=(Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o');AtualizadoEm=[DateTime]::UtcNow.ToString('o');Gain=0.1;Muted=$false;UltimoErro=''}
     Write-TestJson $statePath $state
     if (-not (Read-TestStatus).Ligado) {throw 'Matching fresh owner was rejected.'}
+    # JSON DateTime deserialization in PowerShell 7.5 must not break ownership.
+    $state.RunnerStartedUtc=(Get-Process -Id $PID).StartTime.ToUniversalTime()
+    $state.AtualizadoEm=[DateTime]::UtcNow
+    Write-TestJson $statePath $state
+    if (-not (Read-TestStatus).Ligado) {throw 'DateTime owner/heartbeat was rejected.'}
     $state.RunnerStartedUtc=[DateTime]::UtcNow.ToString('o');Write-TestJson $statePath $state
     if ((Read-TestStatus).Ligado) {throw 'Recycled process ID advertised ready.'}
     $state.RunnerStartedUtc=(Get-Process -Id $PID).StartTime.ToUniversalTime().ToString('o')
@@ -40,4 +45,4 @@ try {
     foreach ($file in @($manager,$statePath,$configPath,($configPath+'.tmp'),($statePath+'.tmp'))) {if ([IO.File]::Exists($file)) {[IO.File]::Delete($file)}}
     foreach ($directory in @($scriptDir,$configDir,$testRoot)) {if ([IO.Directory]::Exists($directory)) {[IO.Directory]::Delete($directory)}}
 }
-Write-Output 'Passed: fresh/stale/recycled/future/malformed status, stopped Configure typed gain/mute. No audio or hardware changed.'
+Write-Output 'Passed: string/DateTime owner, fresh/stale/recycled/future/malformed status, stopped Configure typed gain/mute. No audio or hardware changed.'

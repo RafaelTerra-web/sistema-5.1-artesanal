@@ -1,0 +1,15 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'br.com.sistema51.controller'
+    compileSdk 36
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'br.com.sistema51.controller'
+        minSdk 28
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+}
+dependencies { testImplementation 'junit:junit:4.13.2' }

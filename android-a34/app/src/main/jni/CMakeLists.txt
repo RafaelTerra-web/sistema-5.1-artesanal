@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.22)
+project(sistema51_usb C)
+add_library(sistema51_usb SHARED usb_capture.c live_usb.c)
+target_compile_options(sistema51_usb PRIVATE -Wall -Wextra -Werror -std=c11)
+target_link_options(sistema51_usb PRIVATE "-Wl,-z,max-page-size=16384")
+add_subdirectory(ac3)

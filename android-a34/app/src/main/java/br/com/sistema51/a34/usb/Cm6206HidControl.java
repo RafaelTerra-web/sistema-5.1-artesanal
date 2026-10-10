@@ -43,6 +43,10 @@ public final class Cm6206HidControl {
 
     /** Does not request permission, detach kernel drivers, or modify registers. */
     public static JSONObject readSnapshot(Context context, int deviceId) {
+        return readSnapshot(context, deviceId, false);
+    }
+    /** Exclusive diagnostic: only HID interface 3 may be detached, never audio interfaces. */
+    public static JSONObject readSnapshot(Context context, int deviceId, boolean exclusiveHid) {
         JSONObject result = new JSONObject();
         JSONArray registers = new JSONArray();
         put(result, "readOnly", true);
@@ -79,6 +83,7 @@ public final class Cm6206HidControl {
         for (int index = 0; index < device.getInterfaceCount() && hid == null; index++) {
             UsbInterface candidate = device.getInterface(index);
             if (candidate.getInterfaceClass() != UsbConstants.USB_CLASS_HID) continue;
+            if (exclusiveHid && candidate.getId() != 3) continue;
             // Do not select an alternate setting. Diagnose only the default HID interface.
             if (candidate.getAlternateSetting() != 0) continue;
             for (int endpointIndex = 0; endpointIndex < candidate.getEndpointCount(); endpointIndex++) {
@@ -104,7 +109,7 @@ public final class Cm6206HidControl {
         put(caps, "outputWireBytes", OUTPUT_WIRE_BYTES);
         put(caps, "reportId", 0);
         put(caps, "reportIdPrefixedOnWire", false);
-        put(caps, "claimForce", false);
+        put(caps, "claimForce", exclusiveHid);
         put(result, "caps", caps);
 
         UsbDeviceConnection connection = null;
@@ -115,7 +120,7 @@ public final class Cm6206HidControl {
             connection = manager.openDevice(device);
             if (connection == null) return failure(result, "open_failed", "Não foi possível abrir o dispositivo USB.");
             // Claim only HID, without detaching a bound driver. Audio stays with Android.
-            claimed = connection.claimInterface(hid, false);
+            claimed = connection.claimInterface(hid, exclusiveHid);
             put(caps, "claimed", claimed);
             if (!claimed) return failure(result, "hid_busy", "Interface HID ocupada; nenhum driver foi removido.");
             request = new UsbRequest();

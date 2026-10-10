@@ -7,3 +7,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = 'Sistema51A34'
 include ':app'
+include ':controller'
