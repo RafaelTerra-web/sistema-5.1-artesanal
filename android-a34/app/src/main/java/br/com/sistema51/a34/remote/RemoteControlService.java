@@ -24,6 +24,7 @@ public final class RemoteControlService extends Service {
     private AppFacade facade;
     private LanDiscoveryAdvertiser discovery;
     private String discoveryIdentity;
+    private RoomCalibrationApi room;
     private final String session=UUID.randomUUID().toString();
     private static volatile String state="Desligado";
     public static String state(){return state;}
@@ -60,6 +61,7 @@ public final class RemoteControlService extends Service {
         if(discoveryIdentity==null){discoveryIdentity=UUID.randomUUID().toString();prefs.edit().putString("discovery_id",discoveryIdentity).apply();}
         accessCodeGate=new AccessCodeGate(accessCode(this),prefs.getInt("access_failures",0),prefs.getInt("access_lockout_level",0),prefs.getLong("access_blocked_until",0));
         facade=((A34Application)getApplication()).facade();
+        room=new RoomCalibrationApi(facade);
         NotificationManager nm=getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel("a34_lan","Controle pela rede local",NotificationManager.IMPORTANCE_LOW));
         PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,MainActivity.class),PendingIntent.FLAG_IMMUTABLE);
@@ -110,7 +112,7 @@ public final class RemoteControlService extends Service {
     private LocalHttpServer.Response handle(LocalHttpServer.Request request)throws Exception{
         if("GET".equals(request.method)){
             if("/api/info".equals(request.path))return json(200,new JSONObject().put("application","sistema51-a34")
-                .put("name","A34 DSP").put("protocol",1).put("id",discoveryIdentity));
+                .put("name","A34 DSP").put("protocol",1).put("roomCalibrationProtocol",1).put("id",discoveryIdentity));
             if("/".equals(request.path))return asset("index.html","text/html");
             if("/app.js".equals(request.path))return asset("app.js","application/javascript");
             if("/style.css".equals(request.path))return asset("style.css","text/css");
@@ -122,10 +124,18 @@ public final class RemoteControlService extends Service {
         if(!authorized(supplied))return json(401,new JSONObject().put("error","Sessão expirada. Informe novamente o código de acesso."));
         try{
             if("GET".equals(request.method)&&"/api/state".equals(request.path))return json(200,snapshot());
+            if("GET".equals(request.method)&&"/api/room/status".equals(request.path))return json(200,room.handle("status",new JSONObject()));
             if("POST".equals(request.method)){
                 if(!request.headers.getOrDefault("content-type","").startsWith("application/json"))return json(415,new JSONObject().put("error","Envie JSON."));
                 JSONObject body=new JSONObject(request.body);
                 if(!session.equals(body.optString("session")))return json(409,new JSONObject().put("error","O controle foi reiniciado. Atualize o painel antes de aplicar."));
+                if(request.path.startsWith("/api/room/")){
+                    int prior=android.os.Process.getThreadPriority(android.os.Process.myTid());
+                    try{
+                        if("/api/room/finish".equals(request.path))android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND);
+                        return json(200,room.handle(request.path.substring("/api/room/".length()),body));
+                    }finally{android.os.Process.setThreadPriority(prior);}
+                }
                 if("/api/profile".equals(request.path)){
                     facade.patchProfile(body.getJSONObject("changes"),body.getLong("revision"),body.optBoolean("unlockDelays",false));
                     return json(200,snapshot());
@@ -150,6 +160,6 @@ public final class RemoteControlService extends Service {
         catch(IllegalStateException e){return json(409,new JSONObject().put("error",e.getMessage()==null?"O controle de áudio está indisponível.":e.getMessage()));}
     }
     @Override public int onStartCommand(Intent intent,int flags,int id){if(intent!=null&&STOP.equals(intent.getAction())){getSharedPreferences("lan_control_v1",MODE_PRIVATE).edit().putBoolean("enabled",false).apply();stopSelf();}return START_NOT_STICKY;}
-    @Override public void onDestroy(){if(discovery!=null)discovery.close();if(server!=null)server.close();if("Ativo".equals(state))state="Desligado";super.onDestroy();}
+    @Override public void onDestroy(){if(room!=null)room.close();if(discovery!=null)discovery.close();if(server!=null)server.close();if("Ativo".equals(state))state="Desligado";super.onDestroy();}
     @Override public IBinder onBind(Intent intent){return null;}
 }

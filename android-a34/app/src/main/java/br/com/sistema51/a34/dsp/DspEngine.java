@@ -25,6 +25,7 @@ public final class DspEngine {
     private int centerToFrontGainRemaining;
     private final Biquad[] eq = new Biquad[AudioProfile.EQ_BAND_COUNT];
     private final Biquad[][] generalEq=new Biquad[CHANNEL_COUNT][AudioProfile.GENERAL_EQ_BAND_COUNT];
+    private final Biquad[][] roomEq=new Biquad[CHANNEL_COUNT][RoomCorrection.MAX_FILTERS];
     private final Biquad[] surroundLow = filters(4), surroundHigh = filters(4);
     private final Biquad[] centerLow = filters(2), stereoLow = filters(2);
     private final Biquad[] frontLow=filters(6),frontHigh=filters(6);
@@ -43,6 +44,7 @@ public final class DspEngine {
         this.maxBlockFrames = maxBlockFrames;
         for (int b = 0; b < eq.length; b++) eq[b] = new Biquad();
         for(int c=0;c<CHANNEL_COUNT;c++)for(int b=0;b<AudioProfile.GENERAL_EQ_BAND_COUNT;b++)generalEq[c][b]=new Biquad();
+        for(int c=0;c<CHANNEL_COUNT;c++)for(int b=0;b<RoomCorrection.MAX_FILTERS;b++)roomEq[c][b]=new Biquad();
         requested = new CompiledProfile(AudioProfile.defaultProfile());
         applyProfile(requested);
     }
@@ -89,6 +91,8 @@ public final class DspEngine {
         AudioProfile p = active.profile;
         double master = p.isMuted() ? 0 : p.getMasterGain();
         int generalEqMask=0;
+        int roomMask=0;
+        for(int c=0;c<CHANNEL_COUNT;c++)for(Biquad filter:roomEq[c])if(filter.active()){roomMask|=1<<c;break;}
         for(int b=0;b<AudioProfile.GENERAL_EQ_BAND_COUNT;b++)
             for(int c=0;c<CHANNEL_COUNT;c++)if(generalEq[c][b].active()){generalEqMask|=1<<b;break;}
         for (int f = 0, inputIndex = 0, outputIndex = 0; f < frames;
@@ -157,6 +161,8 @@ public final class DspEngine {
                         frame[c]=sample*generalEqGain;
                     }
                 }
+                if(roomMask!=0)for(int c=0;c<CHANNEL_COUNT;c++)if((roomMask&(1<<c))!=0)
+                    for(Biquad filter:roomEq[c])frame[c]=filter.process(frame[c]);
             }
             for (int c = 0; c < CHANNEL_COUNT; c++) {
                 if(gainRampRemaining>0)outputGain[c]+=gainStep[c];
@@ -214,6 +220,10 @@ public final class DspEngine {
         for(int c=0;c<CHANNEL_COUNT;c++)for(int b=0;b<AudioProfile.GENERAL_EQ_BAND_COUNT;b++){
             if(changedTopology)generalEq[c][b].coefficients(next.generalEqCoefficients[b]);else generalEq[c][b].smoothCoefficients(next.generalEqCoefficients[b]);
         }
+        for(int c=0;c<CHANNEL_COUNT;c++)for(int b=0;b<RoomCorrection.MAX_FILTERS;b++){
+            if(changedTopology)roomEq[c][b].coefficients(next.roomCoefficients[c][b]);
+            else roomEq[c][b].smoothCoefficients(next.roomCoefficients[c][b]);
+        }
         for (Biquad filter : surroundLow) filter.coefficients(next.surroundLow);
         for (Biquad filter : surroundHigh) filter.coefficients(next.surroundHigh);
         for (Biquad filter : centerLow) filter.coefficients(next.centerLow);
@@ -247,6 +257,7 @@ public final class DspEngine {
         for(Biquad filter:frontLow)filter.reset();
         for(Biquad filter:frontHigh)filter.reset();
         for(Biquad[] channel:generalEq)for(Biquad filter:channel)filter.reset();
+        for(Biquad[] channel:roomEq)for(Biquad filter:channel)filter.reset();
         lfeSubsonic.reset();
         ringPosition = 0;
     }
@@ -256,12 +267,20 @@ public final class DspEngine {
         final double[][] eqCoefficients = new double[AudioProfile.EQ_BAND_COUNT][];
         final double[][] generalEqCoefficients=new double[AudioProfile.GENERAL_EQ_BAND_COUNT][];
         final boolean[] generalEqBandEnabled=new boolean[AudioProfile.GENERAL_EQ_BAND_COUNT];
+        final double[][][] roomCoefficients=new double[CHANNEL_COUNT][RoomCorrection.MAX_FILTERS][];
         final double generalEqHeadroom;
         final double[] surroundLow, surroundHigh, centerLow, stereoLow;
         final double[] frontLow,frontHigh,lfeSubsonic;
         CompiledProfile(AudioProfile profile) { this(profile,null); }
         CompiledProfile(AudioProfile profile,CompiledProfile previous) {
             this.profile = profile;
+            RoomCorrection room=profile.getRoomCorrection();
+            for(int c=0;c<CHANNEL_COUNT;c++)for(int b=0;b<RoomCorrection.MAX_FILTERS;b++){
+                if(previous!=null&&room.equals(previous.profile.getRoomCorrection()))roomCoefficients[c][b]=previous.roomCoefficients[c][b];
+                else if(room.isEnabled()&&b<room.count(c)){
+                    RoomCorrection.Filter f=room.filter(c,b);roomCoefficients[c][b]=Biquad.peak(f.frequencyHz,f.q,f.gainDb);
+                }else roomCoefficients[c][b]=Biquad.peak(100,1,0);
+            }
             if(previous!=null&&sameFilterSettings(profile,previous.profile)){
                 System.arraycopy(previous.eqCoefficients,0,eqCoefficients,0,eqCoefficients.length);
                 System.arraycopy(previous.generalEqCoefficients,0,generalEqCoefficients,0,generalEqCoefficients.length);

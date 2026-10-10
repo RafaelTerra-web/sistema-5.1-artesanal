@@ -14,18 +14,19 @@ async function requestJson(path,options){
  finally{clearTimeout(timer);}
 }
 const controlId=(key,index)=>key+':'+index;
+const quarterDb=value=>Math.round(Number(value)*4)/4;
 const percentToGain=percent=>Math.pow(Math.max(0,Math.min(100,percent))/100,3);
 const gainToPercent=gain=>100*Math.cbrt(Math.max(0,Math.min(1,gain)));
 const groups=[
- ['Volume por canal',[['channelTrim','Nível (dB)',-60,12.041,.1,'db']]],
- ['Equalizador geral · 10 bandas',[['generalEqEnabled','Ativar equalizador geral'],['generalEqGainDb','Ganho (dB)',-12,6,.1,'dbValue']]],
+ ['Volume por canal',[['channelTrim','Nível (dB)',-60,12,.25,'db']]],
+ ['Equalizador geral · 10 bandas',[['generalEqEnabled','Ativar equalizador geral'],['generalEqGainDb','Ganho (dB)',-12,6,.25,'dbValue']]],
  ['Entrada e processamento',[
   ['muted','Mute'],['bypass','Bypass'],['inputMode','Modo da entrada PCM manual'],['swapCenterLfe','Inverter central/sub na saída']]],
  ['Atraso de canais',[['delaySamples','Atraso (ms)',0,250,.020833333,'delay']]],
  ['Upmix mono/estéreo',[['upmixCenterGain','Envio à central',0,1,.01],['upmixSurroundGain','Envio às surrounds',0,1,.01],['upmixBassGain','Envio ao sub',0,1,.01],['upmixDifference','Ambiência L − R',0,1,.01],['upmixBassCutoffHz','Corte do grave (Hz)',40,160,1]]],
  ['Roteamento da central',[['centerToFrontGain','Central → frontais (%)',0,100,1,'percent']]],
  ['Cortes e graves',[['frontCrossoverEnabled','Crossover frontal'],['frontCutoffHz','Corte frontal (Hz)',40,160,1],['frontBassSend','Envio de graves frontal/central',0,1,.01],['surroundCrossoverEnabled','Crossover surround'],['surroundCutoffHz','Corte surround (Hz)',40,120,1],['surroundBassSend','Envio de graves surround',0,1,.01],['centerBassCopyEnabled','Cópia de graves central'],['centerBassCutoffHz','Corte da cópia central (Hz)',40,120,1],['centerBassSend','Envio da cópia central',0,1,.01],['lfeSubsonicEnabled','Subsônico LFE'],['lfeSubsonicHz','Corte subsônico (Hz)',10,40,1]]],
- ['Equalizador do sub',[['lfeEqEnabled','EQ LFE'],['automaticLfeHeadroom','Margem automática LFE'],['lfeHeadroom','Margem manual LFE',0,1,.01],['lfeEqFrequenciesHz','Frequência (Hz)',10,200,1],['lfeEqGainDb','Ganho (dB)',-12,6,.1,'dbValue'],['lfeEqQ','Q',.3,10,.1]]]
+ ['Equalizador do sub',[['lfeEqEnabled','EQ LFE'],['automaticLfeHeadroom','Margem automática LFE'],['lfeHeadroom','Margem manual LFE',0,1,.01],['lfeEqFrequenciesHz','Frequência (Hz)',10,200,1],['lfeEqGainDb','Ganho (dB)',-12,6,.25,'dbValue'],['lfeEqQ','Q',.3,10,.1]]]
 ];
 async function api(path,body){
  const requestedToken=token;
@@ -109,17 +110,17 @@ function editor(value,preservePending=false){
     const live=liveFields.has(key),range=live&&typeof shown==='number';
     if(key==='inputMode'){for(const [v,t] of [['NATIVE_5_1','PCM 5.1 nativo'],['STEREO_UPMIX','PCM estéreo com upmix']]){const option=document.createElement('option');option.value=v;option.textContent=t;input.append(option);}input.value=shown;}
     else if(typeof baseValue==='boolean'){input.type='checkbox';input.checked=shown;}
-    else{input.type=range?'range':'number';input.min=min;input.max=max;input.step=range?step:'any';input.value=String(kind==='db'?Number(shown<=0?-60:20*Math.log10(shown)).toFixed(2):kind==='delay'?Number(shown/48).toFixed(6):kind==='percent'?Number(shown*100).toFixed(0):shown);}
-    let readout=null;if(range){readout=document.createElement('small');readout.textContent=kind==='percent'?Number(input.value).toFixed(0)+'%':Number(input.value).toFixed(1)+' dB';}
+    else{input.type=range?'range':'number';input.min=min;input.max=max;input.step=range?step:'any';const dbValue=kind==='db'?Number(shown<=0?-60:20*Math.log10(shown)):kind==='dbValue'?Number(shown):null;input.value=String(dbValue===null?(kind==='delay'?Number(shown/48).toFixed(6):kind==='percent'?Number(shown*100).toFixed(0):shown):quarterDb(dbValue));}
+    let readout=null;if(range){readout=document.createElement('small');readout.textContent=kind==='percent'?Number(input.value).toFixed(0)+'%':Number(input.value).toFixed(2)+' dB';}
     if(kind==='delay'){input.disabled=true;input.className='delay';}
     const id=controlId(key,Array.isArray(profile[key])?index:-1);
     controls.set(id,{input,readout,key,index:Array.isArray(profile[key])?index:-1,kind});
-    if(range)input.addEventListener('input',()=>{activeSlider=id;readout.textContent=kind==='percent'?Number(input.value).toFixed(0)+'%':Number(input.value).toFixed(1)+' dB';const next=kind==='db'?(Number(input.value)<=-60?0:Math.pow(10,Number(input.value)/20)):kind==='percent'?Number(input.value)/100:Number(input.value);queueLive(key,Array.isArray(profile[key])?index:-1,next);});
+    if(range)input.addEventListener('input',()=>{activeSlider=id;const sliderValue=(kind==='db'||kind==='dbValue')?quarterDb(input.value):Number(input.value);if(kind==='db'||kind==='dbValue')input.value=String(sliderValue);readout.textContent=kind==='percent'?Number(input.value).toFixed(0)+'%':(kind==='db'||kind==='dbValue')?sliderValue.toFixed(2)+' dB':Number(input.value).toFixed(2)+' dB';const next=kind==='db'?(sliderValue<=-60?0:Math.pow(10,sliderValue/20)):kind==='percent'?Number(input.value)/100:sliderValue;queueLive(key,Array.isArray(profile[key])?index:-1,next);});
     input.addEventListener('change',()=>{
      activeSlider=null;
      let next=input.type==='checkbox'?input.checked:key==='inputMode'?input.value:Number(input.value);
      if((input.type==='number'||input.type==='range')&&(!Number.isFinite(next)||next<min||next>max||input.value.trim()==='')){input.setCustomValidity('Valor fora da faixa');input.reportValidity();return;}
-     input.setCustomValidity('');if(kind==='db')next=next<=-60?0:Math.pow(10,next/20);if(kind==='delay')next=Math.round(next*48);if(kind==='percent')next=next/100;
+     input.setCustomValidity('');if(kind==='db'||kind==='dbValue')next=quarterDb(next);if(kind==='db')next=next<=-60?0:Math.pow(10,next/20);if(kind==='delay')next=Math.round(next*48);if(kind==='percent')next=next/100;
      if(live)return commitLive(key,Array.isArray(profile[key])?index:-1,next);
      queuePending(key,Array.isArray(profile[key])?index:-1,next);
     });
@@ -133,8 +134,8 @@ function syncEditor(){
   if(activeSlider===id||liveQueue.has(id)||liveApplying.has(id))continue;
   const value=Object.prototype.hasOwnProperty.call(pending,key)?pending[key]:profile[key],shown=index<0?value:value[index];
   if(typeof shown==='boolean')input.checked=shown;
-  else input.value=String(kind==='db'?Number(shown<=0?-60:20*Math.log10(shown)).toFixed(2):kind==='delay'?Number(shown/48).toFixed(6):kind==='percent'?Number(shown*100).toFixed(0):shown);
-  if(readout)readout.textContent=kind==='percent'?Number(input.value).toFixed(0)+'%':Number(input.value).toFixed(1)+' dB';
+  else{const dbValue=kind==='db'?Number(shown<=0?-60:20*Math.log10(shown)):kind==='dbValue'?Number(shown):null;input.value=String(dbValue===null?(kind==='delay'?Number(shown/48).toFixed(6):kind==='percent'?Number(shown*100).toFixed(0):shown):quarterDb(dbValue));}
+  if(readout)readout.textContent=kind==='percent'?Number(input.value).toFixed(0)+'%':(kind==='db'||kind==='dbValue')?Number(input.value).toFixed(2)+' dB':Number(input.value).toFixed(2)+' dB';
   if(kind==='delay')input.disabled=!$('unlock').checked;
  }
 }

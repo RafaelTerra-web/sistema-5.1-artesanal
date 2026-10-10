@@ -1,12 +1,12 @@
 package br.com.sistema51.a34.dsp;
 
-/** Upmix only known non-Dolby mono/stereo; preserve Dolby and native multichannel. */
+/** Upmix identified mono/stereo sources; preserve every native multichannel stream. */
 public final class SourceAudioPolicy {
     public enum Codec { PCM, NON_DOLBY, AC3, EAC3, UNKNOWN }
     private SourceAudioPolicy(){}
     public static boolean shouldUpmix(Codec codec,int channels){
         return (channels==1||channels==2)
-                &&(codec==Codec.PCM||codec==Codec.NON_DOLBY);
+                &&(codec==Codec.PCM||codec==Codec.NON_DOLBY||codec==Codec.AC3);
     }
     public static AudioProfile profileFor(AudioProfile profile,Codec codec,int channels){
         if(channels!=1&&channels!=2&&channels!=6)throw new IllegalArgumentException("Supported source channels: 1, 2, 6");

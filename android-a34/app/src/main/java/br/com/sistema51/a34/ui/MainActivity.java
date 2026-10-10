@@ -430,7 +430,7 @@ public final class MainActivity extends Activity {
         heading(volumes,"Volume por canal","Equilibre as seis caixas. O volume mestre preserva esse equilíbrio.");
         for(int i=0;i<6;i++){
             final int channel=i;
-            addSlider(volumes,CHANNELS[i]+" · "+CHANNEL_NAMES[i],linearToDb(arrayValue("channelTrim",i,1)),-60,12,.5f,"dB",value->{
+            addSlider(volumes,CHANNELS[i]+" · "+CHANNEL_NAMES[i],linearToDb(arrayValue("channelTrim",i,1)),-60,12,.25f,"dB",value->{
                 putArray("channelTrim",channel,dbToLinear(value));changed();
             });
         }
@@ -508,18 +508,18 @@ public final class MainActivity extends Activity {
         addToggle(bass,"Trocar CEN/BASS na saída USB","Use apenas se um teste físico confirmar canais invertidos; a ligação no R não determina o mapa USB.","swapCenterLfe",false);
         addToggle(bass,"Crossover frontais e central","Retira graves de FL/FR/FC e envia ao LFE, antes dos atrasos.","frontCrossoverEnabled",false);
         addSlider(bass,"Corte frontais/central",(float)profile.optDouble("frontCutoffHz",90),40,160,1,"Hz",v->{put("frontCutoffHz",v);changed();});
-        addSlider(bass,"Envio frontais/central → LFE",linearToDb(profile.optDouble("frontBassSend",1)),-24,0,.5f,"dB",v->{put("frontBassSend",dbToLinear(v));changed();});
+        addSlider(bass,"Envio frontais/central → LFE",linearToDb(profile.optDouble("frontBassSend",1)),-24,0,.25f,"dB",v->{put("frontBassSend",dbToLinear(v));changed();});
         addToggle(bass,"Filtro subsônico no LFE","Reduz infragraves abaixo do corte; não limita potência do amplificador.","lfeSubsonicEnabled",false);
         addSlider(bass,"Corte subsônico",(float)profile.optDouble("lfeSubsonicHz",20),10,40,1,"Hz",v->{put("lfeSubsonicHz",v);changed();});
         addToggle(bass, "Crossover dos surrounds", "Passa-altas em SL/SR; envia graves ao subwoofer.", "surroundCrossoverEnabled", true);
         addSlider(bass, "Corte dos surrounds", (float) profile.optDouble("surroundCutoffHz", 90), 40, 120, 1, "Hz", value -> { put("surroundCutoffHz", value); changed(); });
-        addSlider(bass, "Envio surround → LFE", linearToDb(profile.optDouble("surroundBassSend", 1)), -24, 0, .5f, "dB", value -> { put("surroundBassSend", dbToLinear(value)); changed(); });
+        addSlider(bass, "Envio surround → LFE", linearToDb(profile.optDouble("surroundBassSend", 1)), -24, 0, .25f, "dB", value -> { put("surroundBassSend", dbToLinear(value)); changed(); });
         addToggle(bass, "Copiar graves da central", "Mantém a central inteira e copia o passa-baixas para LFE.", "centerBassCopyEnabled", false);
         bass.addView(text("Com o crossover frontal ativo, a cópia separada da central é ignorada para não somar os mesmos graves duas vezes.",12,MUTED));
         addSlider(bass, "Corte da central", (float) profile.optDouble("centerBassCutoffHz", 120), 40, 120, 1, "Hz", value -> { put("centerBassCutoffHz", value); changed(); });
-        addSlider(bass, "Envio central → LFE", linearToDb(profile.optDouble("centerBassSend", 1)), -24, 0, .5f, "dB", value -> { put("centerBassSend", dbToLinear(value)); changed(); });
+        addSlider(bass, "Envio central → LFE", linearToDb(profile.optDouble("centerBassSend", 1)), -24, 0, .25f, "dB", value -> { put("centerBassSend", dbToLinear(value)); changed(); });
         addToggle(bass, "Margem automática no LFE", "Reduz o nível pelo pior caso da soma de graves e boosts do EQ.", "automaticLfeHeadroom", true);
-        addSlider(bass, "Margem manual do LFE", linearToDb(profile.optDouble("lfeHeadroom", 1.0 / 3.0)), -36, 0, .5f, "dB", value -> { put("lfeHeadroom", dbToLinear(value)); changed(); });
+        addSlider(bass, "Margem manual do LFE", linearToDb(profile.optDouble("lfeHeadroom", 1.0 / 3.0)), -36, 0, .25f, "dB", value -> { put("lfeHeadroom", dbToLinear(value)); changed(); });
         bass.addView(text("A margem manual só é usada com a margem automática desligada.", 12, MUTED));
         addCard(bass);
 
@@ -530,11 +530,27 @@ public final class MainActivity extends Activity {
         for(int band=0;band<br.com.sistema51.a34.dsp.AudioProfile.GENERAL_EQ_BAND_COUNT;band++){
             final int selectedBand=band;
             float frequency=br.com.sistema51.a34.dsp.AudioProfile.getGeneralEqFrequencyHz(band);
-            addSlider(generalEq,fmt(frequency,frequency<1000?1:0)+" Hz",(float)arrayValue("generalEqGainDb",band,0),-12,6,.5f,"dB",value->{
+            addSlider(generalEq,fmt(frequency,frequency<1000?1:0)+" Hz",(float)arrayValue("generalEqGainDb",band,0),-12,6,.25f,"dB",value->{
                 putArray("generalEqGainDb",selectedBand,value);changed();
             });
         }
         addCard(generalEq);
+
+        LinearLayout room=card();
+        heading(room,"Correção de sala","Filtros individuais calculados com o microfone do A55. O EQ manual e os atrasos são preservados.");
+        JSONObject roomSettings=profile.optJSONObject("roomCorrection");
+        int roomFilters=0;JSONArray roomChannels=roomSettings==null?null:roomSettings.optJSONArray("filters");
+        if(roomChannels!=null)for(int c=0;c<roomChannels.length();c++){JSONArray values=roomChannels.optJSONArray(c);if(values!=null)roomFilters+=values.length();}
+        room.addView(text(roomFilters==0?"Use Medir sala no controle do A55 para criar uma sugestão.":roomFilters+" cortes salvos. Compare ligado/desligado no mesmo volume.",13,MUTED));
+        Button roomToggle=button(roomSettings!=null&&roomSettings.optBoolean("enabled")?"Desativar correção de sala":"Ativar correção salva",false);
+        roomToggle.setEnabled(roomFilters>0);
+        roomToggle.setOnClickListener(v->{
+            JSONObject value=profile.optJSONObject("roomCorrection");if(value==null)return;
+            try{value.put("enabled",!value.optBoolean("enabled"));put("roomCorrection",value);changed();
+                roomToggle.setText(value.optBoolean("enabled")?"Desativar correção de sala":"Ativar correção salva");
+            }catch(org.json.JSONException failure){toast("Não foi possível alterar a correção.");}
+        });
+        room.addView(roomToggle,fullButton());addCard(room);
 
         LinearLayout eq = card();
         heading(eq, "Equalizador do subwoofer", "9 bandas paramétricas · ganhos em dB · Q editável por banda");
@@ -542,7 +558,7 @@ public final class MainActivity extends Activity {
         for (int i = 0; i < 9; i++) {
             final int band = i;
             double frequency = arrayValue("lfeEqFrequenciesHz", i, 20);
-            addSlider(eq, fmt(frequency, 0) + " Hz", (float) arrayValue("lfeEqGainDb", i, 0), -12, 6, .5f, "dB", value -> {
+            addSlider(eq, fmt(frequency, 0) + " Hz", (float) arrayValue("lfeEqGainDb", i, 0), -12, 6, .25f, "dB", value -> {
                 putArray("lfeEqGainDb", band, value); changed();
             });
             TextView bandEdit = text("Banda " + (i + 1) + "  ·  " + fmt(frequency, 0) + " Hz  ·  Q " + fmt(arrayValue("lfeEqQ", i, 2), 2) + "   Editar", 12, TEAL);
@@ -713,19 +729,22 @@ public final class MainActivity extends Activity {
 
     private SliderBinding addSlider(LinearLayout parent, String label, float initial, float min, float max,
                            float step, String unit, ValueChange onValue, boolean protectedDelay) {
+        float controlStep = unit.equals("dB") ? .25f : step;
+        float boundedInitial = Math.max(min, Math.min(max, initial));
+        float snappedInitial = min + Math.round((boundedInitial - min) / controlStep) * controlStep;
         LinearLayout labels = row();
         labels.setGravity(Gravity.CENTER_VERTICAL);
         TextView name = text(label, 13, WHITE);
         labels.addView(name, weighted());
-        TextView valueText = text(formatValue(initial, unit), 13, TEAL);
+        TextView valueText = text(formatValue(snappedInitial, unit), 13, TEAL);
         valueText.setMinHeight(dp(48));
         valueText.setMinWidth(dp(78));
         valueText.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
         labels.addView(valueText);
         parent.addView(labels);
         SeekBar bar = new SeekBar(this);
-        bar.setMax(Math.round((max - min) / step));
-        bar.setProgress(Math.round((Math.max(min, Math.min(max, initial)) - min) / step));
+        bar.setMax(Math.round((max - min) / controlStep));
+        bar.setProgress(Math.round((boundedInitial - min) / controlStep));
         bar.setProgressTintList(ColorStateList.valueOf(TEAL));
         bar.setThumbTintList(ColorStateList.valueOf(TEAL));
         bar.setProgressBackgroundTintList(ColorStateList.valueOf(RAISED));
@@ -735,7 +754,7 @@ public final class MainActivity extends Activity {
             @Override public void onProgressChanged(SeekBar view, int progress, boolean fromUser) {
                 if (!fromUser) return;
                 if (protectedDelay && !delaysUnlocked) return;
-                float value = min + progress * step;
+                float value = min + progress * controlStep;
                 valueText.setText(formatValue(value, unit));
                 onValue.set(value);
             }
@@ -747,7 +766,8 @@ public final class MainActivity extends Activity {
             if (protectedDelay && !delaysUnlocked) return;
             EditText edit = numberInput(Float.parseFloat(valueText.getText().toString().split(" ")[0].replace(',', '.')));
             new AlertDialog.Builder(this).setTitle(label + " (" + unit + ")")
-                    .setMessage("Faixa: " + formatValue(min, unit) + " a " + formatValue(max, unit))
+                    .setMessage("Faixa: " + formatValue(min, unit) + " a " + formatValue(max, unit)
+                            + (unit.equals("dB") ? " · passo de 0,25 dB" : ""))
                     .setView(edit).setNegativeButton("Cancelar", null)
                     .setPositiveButton("Aplicar", (dialog, which) -> {
                         try {
@@ -756,13 +776,14 @@ public final class MainActivity extends Activity {
                             if (!Float.isFinite(entered) || entered < min || entered > max) {
                                 toast("Valor fora da faixa permitida."); return;
                             }
-                            valueText.setText(formatValue(entered, unit));
-                            bar.setProgress(Math.round((entered - min) / step));
-                            onValue.set(entered); applyProfile();
+                            float snapped = min + Math.round((entered - min) / controlStep) * controlStep;
+                            valueText.setText(formatValue(snapped, unit));
+                            bar.setProgress(Math.round((snapped - min) / controlStep));
+                            onValue.set(snapped); applyProfile();
                         } catch (NumberFormatException error) { toast("Informe um número válido."); }
                     }).show();
         });
-        SliderBinding binding = new SliderBinding(bar, valueText, selectedTab, min, step, unit);
+        SliderBinding binding = new SliderBinding(bar, valueText, selectedTab, min, controlStep, unit);
         if (protectedDelay) { delayControls.add(binding); setDelayEditing(delaysUnlocked); }
         return binding;
     }
@@ -1308,7 +1329,7 @@ public final class MainActivity extends Activity {
     private int dp(float value) { return Math.round(value * getResources().getDisplayMetrics().density); }
     private float linearToDb(double value) { return (float) Math.max(-60, value <= 0 ? -60 : 20 * Math.log10(value)); }
     private double dbToLinear(double value) { return Math.pow(10, value / 20); }
-    private String formatValue(double value, String unit) { return fmt(value, unit.equals("Hz") ? 0 : unit.equals("ms") ? 3 : 1) + " " + unit; }
+    private String formatValue(double value, String unit) { return fmt(value, unit.equals("Hz") ? 0 : unit.equals("ms") ? 3 : unit.equals("dB") ? 2 : 1) + " " + unit; }
     private String fmt(double value, int places) { return String.format(Locale.US, "%1$." + places + "f", value); }
 
     private final class LevelView extends View {

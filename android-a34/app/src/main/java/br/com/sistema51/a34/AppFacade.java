@@ -72,6 +72,18 @@ public final class AppFacade extends AppBridge {
         catch(Exception e){throw new IllegalStateException(e);}}
     @Override public synchronized JSONObject loadProfile(){try{return new JSONObject(activeJson.toString());}catch(Exception e){throw new IllegalStateException(e);}}
     public synchronized long profileRevision(){return revision;}
+    public synchronized br.com.sistema51.a34.room.RoomPlayback.Ticket beginRoomTest(String id,int channel,long expectedRevision){
+        if(revision!=expectedRevision)throw new java.util.ConcurrentModificationException("O perfil mudou. Atualize antes de medir.");
+        UsbAudioService.LocalBinder current=binder;
+        if(current==null)throw new IllegalStateException("Serviço de áudio indisponível.");
+        return current.beginRoomTest(id,channel,active);
+    }
+    public synchronized void cancelRoomTest(){UsbAudioService.LocalBinder current=binder;if(current!=null)current.cancelRoomTest();}
+    public synchronized void setRoomCorrection(br.com.sistema51.a34.dsp.RoomCorrection correction,long expectedRevision){
+        if(expectedRevision!=revision)throw new java.util.ConcurrentModificationException("O perfil mudou. Confira antes de aplicar.");
+        try{JSONObject json=loadProfile();json.put("roomCorrection",ProfileStore.roomToJson(correction));applyProfile(json);}
+        catch(org.json.JSONException e){throw new IllegalStateException(e);}
+    }
     public synchronized JSONObject patchProfile(JSONObject changes,long expectedRevision,boolean allowDelays){
         if(expectedRevision!=revision)throw new java.util.ConcurrentModificationException("O perfil mudou. Atualize o painel antes de aplicar.");
         try{
@@ -81,7 +93,8 @@ public final class AppFacade extends AppBridge {
                 if("delaySamples".equals(key)&&!allowDelays)throw new IllegalArgumentException("Confirme o desbloqueio dos atrasos.");
                 Object before=merged.get(key),after=changes.get(key);
                 if(before instanceof Boolean&&!(after instanceof Boolean)||before instanceof Number&&!(after instanceof Number)
-                    ||before instanceof JSONArray&&!(after instanceof JSONArray)||before instanceof String&&!(after instanceof String))throw new IllegalArgumentException("Tipo inválido: "+key);
+                    ||before instanceof JSONArray&&!(after instanceof JSONArray)||before instanceof JSONObject&&!(after instanceof JSONObject)
+                    ||before instanceof String&&!(after instanceof String))throw new IllegalArgumentException("Tipo inválido: "+key);
                 merged.put(key,after);
             }
             applyProfile(merged);return loadProfile();

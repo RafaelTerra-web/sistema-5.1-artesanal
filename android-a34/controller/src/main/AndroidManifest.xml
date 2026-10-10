@@ -3,10 +3,13 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <application android:allowBackup="false" android:label="Controle 5.1" android:icon="@drawable/ic_control"
         android:theme="@style/Theme.Control" android:usesCleartextTraffic="true" android:supportsRtl="true">
         <activity android:name=".ControlActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
         </activity>
+        <activity android:name=".RoomMeasurementActivity" android:exported="false" />
     </application>
 </manifest>

@@ -1,16 +1,16 @@
 # Retomada do sistema 5.1 — 10/10/2026
 
-Este é o estado consolidado para continuar o projeto. Consulte também o [relatório 0.9.1 e controle no A55](A34-CONTROLE-A55-E-REVISAO-2026-10-10.md), o [pipeline óptico Fire TV → A34](FIRE-TV-A34-PIPELINE-CONTINUO-2026-10-09.md) e o [plano de controle de volume Fire TV](FIRE-TV-CONTROLE-DE-VOLUME-A34.md).
+Este é o estado consolidado para continuar o projeto. A atualização atual é descrita no [relatório da versão 0.10.0 / controle 0.2.0](ATUALIZACAO-AC3-ESTEREO-CORRECAO-DE-SALA-2026-10-10.md). Consulte também o [relatório 0.9.1 e controle no A55](A34-CONTROLE-A55-E-REVISAO-2026-10-10.md), o [pipeline óptico Fire TV → A34](FIRE-TV-A34-PIPELINE-CONTINUO-2026-10-09.md) e o [plano de controle de volume Fire TV](FIRE-TV-CONTROLE-DE-VOLUME-A34.md).
 
-**Aplicativos e aparelhos:** DSP 0.9.1 (`versionCode 16`) instalado no Galaxy A34 por depuração sem fio; o app de controle 0.1.0 está no A55. A reinstalação preservou os dados do perfil. A correção do equalizador geral já está no A34, mas ainda precisa ser ouvida com uma fonte que tenha energia na banda ajustada. O novo código preserva AC-3/E-AC-3 estéreo; está sendo preparado como DSP 0.9.2 (`versionCode 17`) e ainda precisa ser instalado no A34.
+**Aplicativos:** DSP A34 0.10.0 (`versionCode 18`) e controle A55 0.2.0 (`versionCode 2`) foram compilados com a correção de sala e os testes aprovados. A versão inclui upmix AC-3 mono/estéreo e preservação AC-3 5.1 discreta. A instalação física deve ser registrada após confirmação por ADB; não inferir instalação só porque os APKs foram preparados.
 
 **Áudio e transporte:** a arquitetura óptica contínua SPDIF IN → USB duplex da CM6206 → parser IEC61937/AC-3 → decoder FFmpeg → DSP → PCM 5.1 está integrada. OTG direto é o caminho físico que funcionou; o hub PD continua instável mesmo com carregamento confirmado. Há janelas de execução contínua estéreo e 5.1 documentadas, mas a observação também registrou reposições de fila, quadros inválidos e descontinuidades em algumas transições. A rota Fire TV → HDMI 2 da Bravia → óptica → CM6206 → A34, em sessões longas e com transições, ainda não está aprovada como confiável.
 
-**Regra atual de upmix:** apenas PCM ou codec não Dolby conhecido, com um ou dois canais. AC-3/E-AC-3 nunca recebe upmix, mesmo quando decodificado como mono/estéreo; conteúdo 5.1 mantém seus canais. AC-3 estéreo na entrada óptica deve sair só em FL/FR. Portadora IEC61937 jamais passa pelo DSP como PCM; formatos desconhecidos não autorizam upmix.
+**Regra atual de upmix:** PCM, codec não Dolby conhecido e AC-3 mono/estéreo recebem upmix; AC-3 5.1 permanece nos seis canais originais, sem duplicação para as frontais. E-AC-3 direto e codecs/layouts desconhecidos não recebem upmix. A Bravia deve permanecer em Auto 1 enquanto a captura PCM óptica da CM6206 não for corrigida: Auto 2 apresentou captura zerada e `CANREC=0` nesta montagem.
 
 **Ajustes e escuta confirmados anteriormente:** na rota do PC, mestre 0,15, sub +3 dB, metade dos graves da central enviados ao sub e atrasos FL/FR 76,8 ms, FC 5,8 ms, SL/SR 71 ms e LFE 5,8 ms. O usuário confirmou áudio limpo e caixas ativas nessa rota. Não copiar automaticamente esse equilíbrio físico para o perfil do A34.
 
-**Próxima validação:** atualizar o APK após este commit e conferir que a mudança de EQ é audível sem clipping. Depois, com amplificadores em volume seguro e antes de qualquer reprodução, fazer teste controlado dos canais/mapeamento AC-3 e observar a rota contínua; investigar eventos de fila e o hub. Fire TV/Bravia e a sincronização do master do A34 com o volume da Fire TV seguem no plano vinculado. Capturas, journals, endereços locais e APKs de trabalho permanecem fora do Git.
+**Próxima validação física:** testar AC-3 estéreo com upmix e AC-3 5.1 discreto no A34, com amplificadores em nível seguro, verificar que nenhuma fala/canal sai trocado ou clipa e exercitar a correção de sala no A55 sem aplicar sugestões frágeis. A compatibilidade do hub PD e a rota PCM óptica seguem pendentes. Fire TV/Bravia e sincronização do volume do A34 com o volume da Fire TV seguem no plano vinculado. Capturas, journals, endereços locais e credenciais permanecem fora do Git.
 
 ## Resultado auditivo e parâmetros PC
 
@@ -32,21 +32,21 @@ O mapa Windows confirmado é slot USB 2 → central e slot USB 3 → LFE/sub, í
 
 ## Instalação e validação A34
 
-- A34 (`SM-A346M`): DSP 0.9.1, versionCode 16 instalado por depuração Wi-Fi; perfil preservado. A mudança do EQ geral está neste binário, mas falta confirmar auditivamente que uma banda aumenta de forma perceptível sem clipping.
-- Revisão atual do código: DSP 0.9.2, versionCode 17, compilado com JDK 21; instalação ainda pendente. Esta versão aplica a política AC-3 corrigida descrita acima.
-- A55: app companion 0.1.0 instalado; descoberta/autenticação e painel remoto confirmados pelo usuário. O app apenas controla o A34, sem processar o áudio.
+- A34 (`SM-A346M`): no momento da atualização, a versão instalada observada por ADB ainda é DSP 0.9.2 (`versionCode 17`); processo ativo. O APK 0.10.0 foi compilado e publicado, sem interromper essa sessão.
+- A55 (`SM-A556E`): controle 0.1.0 instalado e processo ativo. O APK 0.2.0 com o assistente de correção de sala foi compilado e publicado; não foi instalado para preservar a sessão atual de controle.
 - A rota óptica completa está implementada. Em OTG direto houve janelas contínuas de AC-3 estéreo e 5.1. A observação também registrou reposições de fila, dois CRC inválidos descartados e descontinuidades; sessões longas e mudanças de formato ainda precisam ser aprovadas.
 - OTG direto é o caminho comprovado. O hub PD falhou no duplex mesmo com o A34 carregando; causa entre hub, cabo e negociação ainda não isolada. O usuário não tem outro cabo USB.
 - A Bravia foi usada em Sistema de áudio / Auto 1 / Dolby Digital Plus Out Não; a TV entregou AC-3 48 kHz. E-AC-3 direto e PCM óptico não são entradas aprovadas pelo parser atual.
 
-O resultado AC-3 estéreo com upmix anotado no relatório da 0.9.1 pertence à política experimental anterior. A versão 0.9.2 deve mostrar upmix desligado para AC-3 estéreo e manter só FL/FR; para 5.1 AC-3, preservar os seis canais. A revisão de software não substitui teste acústico da ordem de caixas no A34.
+O DSP 0.10.0 agora faz upmix de AC-3 mono/estéreo e mantém AC-3 seis canais em modo nativo. No caminho 5.1 discreto, a matriz de upmix não roda e a cópia CEN → FL/FR não se aplica ao canal central sintético do estéreo; isso evita duplicar o conteúdo das frontais. A alteração ainda precisa ser ouvida após instalar o APK. A revisão de software não substitui teste acústico da ordem física das caixas.
 
 ## Próximas etapas
 
-1. Instalar 0.9.2 no A34 via depuração Wi-Fi e conferir que o perfil e os atrasos permanecem. Testar o EQ com uma fonte estável que contenha energia na banda escolhida, em nível seguro; observar clipping e fazer uma alteração por vez.
-2. Preparar fala/tons separados para FL, FR, FC, LFE, SL e SR em nível baixo. Esperar o comando “toca” antes de reproduzir. Confirmar o mapa físico da saída A34, especialmente FC/LFE e o par surround.
-3. Medir a continuidade do A34 em AC-3 estéreo e 5.1, trocas de formato, pausa/seek e retomada; investigar a fila, CRC/descontinuidades e o comportamento de mute/parada. Não declarar estabilidade prolongada com base em uma janela curta.
-4. Retomar a comparação do hub/PD quando houver uma conexão física confiável. Manter OTG direto enquanto isso.
-5. Com Fire TV em uso, validar a montagem HDMI 2 → Bravia → óptica → CM6206 → A34 e confirmar o codec realmente recebido em cada caso. A TV não leva volume pela óptica; seguir o [plano de controle de volume da Fire TV pelo A34](FIRE-TV-CONTROLE-DE-VOLUME-A34.md) para escolher e testar uma ponte IR/CEC viável.
+1. Instalar 0.10.0 no A34 e 0.2.0 no A55 em janela autorizada; conferir perfil, atrasos, mute e sessão antes de reproduzir.
+2. Com amplificadores em nível seguro, validar AC-3 estéreo do Spotify em todas as caixas e confirmar que os níveis permanecem limpos; em seguida, testar um trecho AC-3 5.1 conhecido e confirmar separação nativa sem upmix.
+3. No A55, testar permissão, gravação UNPROCESSED, isolamento de uma saída por vez, interrupções e uma medição curta antes de coletar três posições e considerar cortes. Microfone do telefone não calibrado: não assumir nível acústico absoluto.
+4. Medir a continuidade do A34 em AC-3 estéreo/5.1, trocas de formato, pausa/seek e retomada; investigar fila, CRC/descontinuidades e mute/parada. Não declarar estabilidade prolongada com base em janela curta.
+5. Retomar a comparação do hub/PD quando houver conexão física confiável. Manter OTG direto enquanto isso.
+6. Manter a Bravia em Auto 1 / DD+ Out Não por enquanto; Auto 2 produziu captura zerada e `CANREC=0` na CM6206 nesta bancada. A TV não leva volume pela óptica; seguir o [plano de controle de volume da Fire TV pelo A34](FIRE-TV-CONTROLE-DE-VOLUME-A34.md) para escolher e testar uma ponte IR/CEC viável.
 
 O [relatório 0.9.1 e controle A55](A34-CONTROLE-A55-E-REVISAO-2026-10-10.md) contém as medições detalhadas; o [pipeline óptico](FIRE-TV-A34-PIPELINE-CONTINUO-2026-10-09.md) descreve a implementação e os limites do decoder. Capturas, journals, IPs, tokens e APKs ficam locais/ignorados. Não iniciar dois gerenciadores para a mesma CM6206.

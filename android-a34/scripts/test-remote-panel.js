@@ -61,13 +61,15 @@ async function run(){
  nodes.get('masterVolume').value='50';await nodes.get('masterVolume').listeners.change();
  assert.equal(serverProfile.masterGain,.125,'master slider writes the DSP gain');
  assert.equal(findInputs('channelTrim').length,6,'a separate channel volume slider is rendered for every output');
+ assert.equal(findInputs('channelTrim')[0].step,.25,'channel trim slider advances in quarter dB steps');
+ assert.equal(findInputs('channelTrim')[0].max,12,'channel trim slider ends on a quarter dB value');
  for(let channel=0;channel<6;channel++){
-  const before=serverProfile.channelTrim.slice(),channelSlider=findInputs('channelTrim')[channel];assert.equal(channelSlider.type,'range');channelSlider.value=String(-6+channel);await channelSlider.listeners.change();
-  assert.ok(Math.abs(serverProfile.channelTrim[channel]-Math.pow(10,(-6+channel)/20))<1e-6,'channel '+channel+' commits its own dB value');
+  const before=serverProfile.channelTrim.slice(),channelSlider=findInputs('channelTrim')[channel],requested=-6+channel+.12,snapped=Math.round(requested*4)/4;assert.equal(channelSlider.type,'range');channelSlider.value=String(requested);await channelSlider.listeners.change();
+  assert.ok(Math.abs(serverProfile.channelTrim[channel]-Math.pow(10,snapped/20))<1e-6,'channel '+channel+' snaps and commits its dB value to 0.25 dB');
   for(let other=0;other<6;other++)if(other!==channel)assert.equal(serverProfile.channelTrim[other],before[other],'editing one channel preserves the others');
  }
- const eqSlider=findInputs('generalEqGainDb')[5];assert.equal(eqSlider.type,'range');eqSlider.value='3';await eqSlider.listeners.change();
- assert.equal(serverProfile.generalEqGainDb[5],3,'graphic EQ stores the entered dB value');
+ const eqSlider=findInputs('generalEqGainDb')[5];assert.equal(eqSlider.type,'range');assert.equal(eqSlider.step,.25,'graphic EQ slider advances in quarter dB steps');eqSlider.value='3.25';await eqSlider.listeners.change();
+ assert.equal(serverProfile.generalEqGainDb[5],3.25,'graphic EQ stores the selected quarter-dB value');
  const centerToFront=findInputs('centerToFrontGain')[0];assert.equal(centerToFront.type,'range');assert.equal(centerToFront.value,'35','center routing slider uses a readable percentage scale');centerToFront.value='62';await centerToFront.listeners.change();
  assert.equal(serverProfile.centerToFrontGain,.62,'center routing slider persists linear gain without attenuating the center channel');
  const lfeGain=findInputs('lfeEqGainDb')[4];lfeGain.value='3';await lfeGain.listeners.change();

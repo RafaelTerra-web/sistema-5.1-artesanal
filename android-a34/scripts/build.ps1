@@ -30,10 +30,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Compilação ou verificações falharam.' }
     $outputDirectory = Join-Path $projectPath 'artifacts'
     New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-    $apkPath = Join-Path $outputDirectory 'sistema51-a34-0.9.1-debug.apk'
+    $dspVersion = [regex]::Match((Get-Content -LiteralPath (Join-Path $projectPath 'app\build.gradle') -Raw), "versionName '([^']+)'").Groups[1].Value
+    $controlVersion = [regex]::Match((Get-Content -LiteralPath (Join-Path $projectPath 'controller\build.gradle') -Raw), "versionName '([^']+)'").Groups[1].Value
+    if ($dspVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$' -or $controlVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Versão do APK inválida.' }
+    $apkPath = Join-Path $outputDirectory ("sistema51-a34-" + $dspVersion + "-debug.apk")
     Copy-Item -LiteralPath (Join-Path $projectPath 'app\build\outputs\apk\debug\app-debug.apk') -Destination $apkPath -Force
     Get-FileHash -LiteralPath $apkPath -Algorithm SHA256
-    $controllerPath = Join-Path $outputDirectory 'sistema51-controle-0.1.0-debug.apk'
+    $controllerPath = Join-Path $outputDirectory ("sistema51-controle-" + $controlVersion + "-debug.apk")
     Copy-Item -LiteralPath (Join-Path $projectPath 'controller\build\outputs\apk\debug\controller-debug.apk') -Destination $controllerPath -Force
     Get-FileHash -LiteralPath $controllerPath -Algorithm SHA256
 } finally { Pop-Location }

@@ -30,6 +30,7 @@ public final class AudioProfile {
     private final float upmixCenterGain, upmixSurroundGain, upmixBassGain, upmixDifference, upmixBassCutoffHz;
     private final boolean frontCrossoverEnabled, lfeSubsonicEnabled, swapCenterLfe;
     private final float frontCutoffHz, frontBassSend, lfeSubsonicHz;
+    private final RoomCorrection roomCorrection;
 
     private AudioProfile(Builder b) {
         masterGain = range("masterGain", b.masterGain, 0, 1);
@@ -37,6 +38,8 @@ public final class AudioProfile {
         bypass = b.bypass;
         if (b.inputMode == null) throw new IllegalArgumentException("inputMode cannot be null");
         inputMode = b.inputMode;
+        if(b.roomCorrection==null)throw new IllegalArgumentException("Correção de sala ausente.");
+        roomCorrection=b.roomCorrection;
         upmixCenterGain = range("upmixCenterGain", b.upmixCenterGain, 0, 1);
         upmixSurroundGain = range("upmixSurroundGain", b.upmixSurroundGain, 0, 1);
         upmixBassGain = range("upmixBassGain", b.upmixBassGain, 0, 1);
@@ -99,6 +102,7 @@ public final class AudioProfile {
     public boolean isMuted() { return muted; }
     public boolean isBypass() { return bypass; }
     public InputMode getInputMode() { return inputMode; }
+    public RoomCorrection getRoomCorrection(){return roomCorrection;}
     public float getUpmixCenterGain() { return upmixCenterGain; }
     public float getUpmixSurroundGain() { return upmixSurroundGain; }
     public float getUpmixBassGain() { return upmixBassGain; }
@@ -163,6 +167,7 @@ public final class AudioProfile {
         private float masterGain = 0.04f;
         private boolean muted, bypass;
         private InputMode inputMode = InputMode.NATIVE_5_1;
+        private RoomCorrection roomCorrection=RoomCorrection.empty();
         // Preserve the earlier matrix for profiles that predate these controls.
         private float upmixCenterGain = 1, upmixSurroundGain = .5f, upmixBassGain = .5f;
         private float upmixDifference = 0, upmixBassCutoffHz = 120;
@@ -186,6 +191,7 @@ public final class AudioProfile {
         private Builder() { }
         private Builder(AudioProfile p) {
             masterGain = p.masterGain; muted = p.muted; bypass = p.bypass; inputMode = p.inputMode;
+            roomCorrection=p.roomCorrection;
             upmixCenterGain = p.upmixCenterGain; upmixSurroundGain = p.upmixSurroundGain;
             upmixBassGain = p.upmixBassGain; upmixDifference = p.upmixDifference;
             upmixBassCutoffHz = p.upmixBassCutoffHz;
@@ -212,6 +218,7 @@ public final class AudioProfile {
         public Builder muted(boolean value) { muted = value; return this; }
         public Builder bypass(boolean value) { bypass = value; return this; }
         public Builder inputMode(InputMode value) { inputMode = value; return this; }
+        public Builder roomCorrection(RoomCorrection value){roomCorrection=value;return this;}
         public Builder upmixCenterGain(float value) { upmixCenterGain = value; return this; }
         public Builder upmixSurroundGain(float value) { upmixSurroundGain = value; return this; }
         public Builder upmixBassGain(float value) { upmixBassGain = value; return this; }

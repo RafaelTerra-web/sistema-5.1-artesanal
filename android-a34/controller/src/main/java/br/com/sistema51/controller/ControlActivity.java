@@ -58,7 +58,9 @@ public final class ControlActivity extends Activity {
         });
         setContentView(root);
         toolbar=new LinearLayout(this);toolbar.setPadding(dp(12),dp(4),dp(12),dp(4));toolbar.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        toolbar.addView(button("Dispositivos",this::showHome));address=text("A34 DSP",12,MINT);address.setPadding(dp(12),0,0,0);toolbar.addView(address);toolbar.setVisibility(View.GONE);root.addView(toolbar);
+        toolbar.addView(button("Dispositivos",this::showHome));toolbar.addView(button("Medir sala",this::openRoomMeasurement));address=text("A34 DSP",12,MINT);address.setPadding(dp(12),0,0,0);
+        address.setSingleLine(true);address.setEllipsize(android.text.TextUtils.TruncateAt.END);toolbar.addView(address,new LinearLayout.LayoutParams(0,-2,1));
+        toolbar.setVisibility(View.GONE);root.addView(toolbar);
         ScrollView scroll=new ScrollView(this);home=new LinearLayout(this);home.setOrientation(LinearLayout.VERTICAL);home.setPadding(dp(24),dp(24),dp(24),dp(24));scroll.addView(home);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         home.addView(text("CONTROLE 5.1",12,MINT));home.addView(text("Seu A34, ao alcance.",30,TEXT));home.addView(text("Volume, caixas e equalizador na mesma rede Wi-Fi. O processamento do áudio continua no A34.",16,0xffa2b0c2));
         home.addView(button("Buscar A34 na rede",this::startDiscovery));
@@ -89,6 +91,17 @@ public final class ControlActivity extends Activity {
         String savedEndpoint=prefs.getString("endpoint","");if(!savedEndpoint.isEmpty())connect(savedEndpoint,prefs.getString("identity",null));
     }
     private void showHome(){generation++;web.stopLoading();web.setVisibility(View.GONE);toolbar.setVisibility(View.GONE);root.getChildAt(1).setVisibility(View.VISIBLE);web.onPause();}
+    private void openRoomMeasurement(){
+        if(endpoint.isEmpty()||web.getVisibility()!=View.VISIBLE)return;
+        final String target=endpoint;
+        web.evaluateJavascript("(function(){try{return JSON.parse(localStorage.getItem('sistema51-control-session')||'null');}catch(e){return null;}})()",value->{
+            if(destroyed||!target.equals(endpoint))return;
+            String token="";
+            try{JSONObject saved=new JSONObject(value);if(saved.optLong("expires")>System.currentTimeMillis())token=saved.optString("token");}catch(Exception ignored){}
+            startActivity(new android.content.Intent(this,RoomMeasurementActivity.class).putExtra("endpoint",target)
+                    .putExtra("token",token).putExtra("identity",prefs.getString("identity",null)));
+        });
+    }
     private void connect(String supplied,String expectedId){
         final String target;try{target=LocalEndpoint.parse(supplied);}catch(IllegalArgumentException invalid){message.setText(invalid.getMessage());return;}
         int requestGeneration=++generation;message.setText("Conectando ao A34…");

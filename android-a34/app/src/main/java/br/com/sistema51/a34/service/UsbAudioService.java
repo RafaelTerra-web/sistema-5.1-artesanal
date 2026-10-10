@@ -68,6 +68,7 @@ public final class UsbAudioService extends Service {
     private static final long IO_TIMEOUT_MS = 1500;
     private static final long IO_RETRY_MS = 2;
     private final LocalBinder binder = new LocalBinder();
+    private final br.com.sistema51.a34.room.RoomPlayback roomPlayback=new br.com.sistema51.a34.room.RoomPlayback();
     private final ExecutorService control = Executors.newSingleThreadExecutor(task -> {
         Thread thread = new Thread(() -> {
             Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND);
@@ -157,6 +158,12 @@ public final class UsbAudioService extends Service {
         public boolean isRunning() { return running; }
         /** Includes queued start and asynchronous teardown, for hardware/profile guards. */
         public boolean isBusy() { return running || starting || stopping; }
+        public br.com.sistema51.a34.room.RoomPlayback.Ticket beginRoomTest(String id,int channel,AudioProfile profile){
+            if(!running||starting||stopping||opticalRoute&&!opticalStatus.optBoolean("signalReady"))
+                throw new IllegalStateException("Mantenha uma fonte estável tocando no A34 antes de medir.");
+            return roomPlayback.begin(id,channel,profile);
+        }
+        public void cancelRoomTest(){roomPlayback.cancel();}
     }
 
     @Override public void onCreate() {
@@ -456,7 +463,7 @@ public final class UsbAudioService extends Service {
                             };
                             try{control.execute(finish);}catch(RejectedExecutionException closing){finish.run();}
                         }
-                    });
+                    },roomPlayback);
                     opticalSession=session;
                     }
                     if(stopEpoch.get()!=expectedEpoch){session.stop();connection.close();opticalSession=null;return;}
@@ -483,6 +490,7 @@ public final class UsbAudioService extends Service {
     }
 
     private void stopWithStatus(String state, String title, String detail) {
+        roomPlayback.cancel();
         // Publish the gate immediately. The control worker handles native calls and the join.
         stopEpoch.incrementAndGet();
         stopRequested = true;
@@ -603,6 +611,7 @@ public final class UsbAudioService extends Service {
                 for (int index = 0; index < filled; index++) input[index] = capture[index] / 32768.0f;
                 long beforeDsp = System.nanoTime();
                 engine.process(input, channels, output, frames);
+                roomPlayback.render(output,frames,engine.getAppliedProfile());
                 clipped = engine.getClippedSamples();
                 long elapsedDsp = System.nanoTime() - beforeDsp;
                 processNanos += elapsedDsp;

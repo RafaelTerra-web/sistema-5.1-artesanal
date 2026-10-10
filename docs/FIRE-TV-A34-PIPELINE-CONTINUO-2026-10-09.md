@@ -1,5 +1,7 @@
 # Fire TV → A34: implementação contínua 0.8.3 — 09/10/2026
 
+> **Adendo 10/10/2026:** a política atualizada passa a fazer upmix de AC-3 mono/estéreo, como o Spotify entregue em AC-3 estéreo, e mantém AC-3 5.1 discreto intocado. O texto histórico abaixo registra a regra que estava em vigor quando a 0.8.3 foi escrita. Consulte [a atualização 0.10.0 e o relatório da correção de sala](ATUALIZACAO-AC3-ESTEREO-CORRECAO-DE-SALA-2026-10-10.md). Auto 2/PCM óptico continua sem captura aprovada nesta CM6206.
+
 ## Estado desta continuação
 
 O usuário pediu a integração do decoder confiável, DSP e saída contínua e informou que os amplificadores estão ligados. A **0.8.0 implementa essa cadeia**; a 0.8.2 acrescentou o controle LAN com PIN curto, e a 0.8.3 acrescenta volumes por canal, equalizador gráfico aplicado aos seis canais e sincronização do perfil local com mudanças remotas. A validação física está em andamento. Este documento descreve o código e os testes independentes disponíveis, sem promover os ensaios curtos da 0.7.0 a aprovação de reprodução contínua.

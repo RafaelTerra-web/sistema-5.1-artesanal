@@ -25,14 +25,16 @@ final class OpticalAudioSession implements Runnable {
     private final UsbDevice device;
     private final UsbDeviceConnection connection;
     private final Listener listener;
+    private final br.com.sistema51.a34.room.RoomPlayback roomPlayback;
     private final AtomicBoolean stopped=new AtomicBoolean();
     private final Object gateLock=new Object();
     private volatile AudioProfile profile;
     private volatile Cm6206DuplexTransport transport;
     private volatile boolean signalReady;
     private volatile String gateFailure="";
-    OpticalAudioSession(Context context,UsbDevice device,UsbDeviceConnection connection,AudioProfile profile,Listener listener){
+    OpticalAudioSession(Context context,UsbDevice device,UsbDeviceConnection connection,AudioProfile profile,Listener listener,br.com.sistema51.a34.room.RoomPlayback roomPlayback){
         this.context=context;this.device=device;this.connection=connection;this.profile=profile;this.listener=listener;
+        this.roomPlayback=roomPlayback;
     }
     void updateProfile(AudioProfile profile){
         synchronized(gateLock){
@@ -75,6 +77,7 @@ final class OpticalAudioSession implements Runnable {
                     long computeStarted=System.nanoTime();
                     long now=SystemClock.elapsedRealtime();
                     if(burst.discontinuity||sourceChannels!=burst.channels||now-lastValid>150){
+                        roomPlayback.cancel();
                         signalReady=false;duplex.setMuted(true);duplex.clearOutput();consecutive=0;
                         if(decoder!=null){decoder.close();decoder=null;}engine.reset();resampler.reset();applied=null;
                     }
@@ -97,6 +100,7 @@ final class OpticalAudioSession implements Runnable {
                         input=monoStereo;inputChannels=2;
                     }
                     engine.process(input,inputChannels,output,1536);
+                    roomPlayback.render(output,1536,selected);
                     long engineClipped=engine.getClippedSamples();clippedTotal+=engineClipped>=engineClippedPrevious?engineClipped-engineClippedPrevious:engineClipped;engineClippedPrevious=engineClipped;
                     java.util.Arrays.fill(squares,0);
                     for(int f=0;f<1536;f++)for(int c=0;c<6;c++){double sample=output[f*6+c];squares[c]+=sample*sample;}
@@ -128,6 +132,7 @@ final class OpticalAudioSession implements Runnable {
                 }
                 long now=SystemClock.elapsedRealtime();
                 if(now-lastValid>150&&sourceChannels!=0){
+                    roomPlayback.cancel();
                     sourceChannels=0;signalReady=false;duplex.setMuted(true);duplex.clearOutput();consecutive=0;applied=null;engine.reset();resampler.reset();
                     if(decoder!=null){decoder.close();decoder=null;}
                 }
@@ -161,6 +166,7 @@ final class OpticalAudioSession implements Runnable {
             }
         }catch(Exception|LinkageError failure){if(!stopped.get())error=failure.getClass().getSimpleName()+": "+failure.getMessage();}
         finally{
+            roomPlayback.cancel();
             signalReady=false;transport=null;
             try{duplex.setMuted(true);}catch(Exception ignored){}
             try{duplex.close();}catch(Exception failure){if(error.isEmpty())error="Falha ao restaurar USB: "+failure.getMessage();}

@@ -5,6 +5,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import br.com.sistema51.a34.dsp.AudioProfile;
+import br.com.sistema51.a34.dsp.RoomCorrection;
 
 /** One validated profile; Android preferences persist atomically between APK updates. */
 public final class ProfileStore {
@@ -91,6 +92,7 @@ public final class ProfileStore {
                 if (widths != null) b.lfeEqQ(i, (float) widths.getDouble(i));
             }
             for(int i=0;i<AudioProfile.GENERAL_EQ_BAND_COUNT;i++)if(generalEq!=null)b.generalEqGainDb(i,(float)generalEq.getDouble(i));
+            if(json.has("roomCorrection"))b.roomCorrection(roomFromJson(json.getJSONObject("roomCorrection")));
             return b.build();
         } catch (JSONException e) { throw new IllegalArgumentException("JSON de perfil inválido: " + e.getMessage(), e); }
     }
@@ -112,12 +114,41 @@ public final class ProfileStore {
                     .put("swapCenterLfe",p.isSwapCenterLfe())
                     .put("lfeEqEnabled", p.isLfeEqEnabled()).put("lfeEqGainDb", gains).put("lfeEqFrequenciesHz", frequencies).put("lfeEqQ", widths)
                     .put("generalEqEnabled",p.isGeneralEqEnabled()).put("generalEqGainDb",generalEq)
+                    .put("roomCorrection",roomToJson(p.getRoomCorrection()))
                     .put("lfeHeadroom", p.getLfeHeadroom()).put("automaticLfeHeadroom", p.isAutomaticLfeHeadroom())
                     .put("effectiveLfeHeadroom", p.getEffectiveLfeHeadroom())
                     .put("surroundCrossoverEnabled", p.isSurroundCrossoverEnabled()).put("surroundCutoffHz", p.getSurroundCutoffHz()).put("surroundBassSend", p.getSurroundBassSend())
                     .put("centerBassCopyEnabled", p.isCenterBassCopyEnabled()).put("centerBassCutoffHz", p.getCenterBassCutoffHz()).put("centerBassSend", p.getCenterBassSend())
                     .put("centerToFrontGain", p.getCenterToFrontGain());
         } catch (JSONException e) { throw new IllegalStateException(e); }
+    }
+    public static RoomCorrection roomFromJson(JSONObject json)throws JSONException{
+        JSONArray channels=json.getJSONArray("filters");
+        if(channels.length()!=6)throw new IllegalArgumentException("Correção deve ter seis canais.");
+        RoomCorrection.Filter[][] result=new RoomCorrection.Filter[6][];
+        for(int c=0;c<6;c++){
+            JSONArray filters=channels.getJSONArray(c);
+            if(filters.length()>RoomCorrection.MAX_FILTERS)throw new IllegalArgumentException("Muitos filtros na correção.");
+            result[c]=new RoomCorrection.Filter[filters.length()];
+            for(int b=0;b<filters.length();b++){
+                JSONObject f=filters.getJSONObject(b);
+                result[c][b]=new RoomCorrection.Filter((float)f.getDouble("frequencyHz"),(float)f.getDouble("gainDb"),(float)f.getDouble("q"));
+            }
+        }
+        if(!(json.opt("enabled") instanceof Boolean))throw new IllegalArgumentException("enabled deve ser booleano.");
+        return new RoomCorrection(json.getBoolean("enabled"),result);
+    }
+    public static JSONObject roomToJson(RoomCorrection room)throws JSONException{
+        JSONArray channels=new JSONArray();
+        for(int c=0;c<6;c++){
+            JSONArray filters=new JSONArray();
+            for(int b=0;b<room.count(c);b++){
+                RoomCorrection.Filter f=room.filter(c,b);
+                filters.put(new JSONObject().put("frequencyHz",f.frequencyHz).put("gainDb",f.gainDb).put("q",f.q));
+            }
+            channels.put(filters);
+        }
+        return new JSONObject().put("enabled",room.isEnabled()).put("filters",channels);
     }
     private static float number(JSONObject json, String key, float fallback) throws JSONException {
         return json.has(key) ? (float) json.getDouble(key) : fallback;
